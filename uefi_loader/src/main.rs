@@ -6,7 +6,7 @@ use core::ptr::NonNull;
 use goblin::elf::Elf;
 use goblin::elf::program_header::PT_LOAD;
 use log::info;
-use uefi::boot::{AllocateType, MemoryType, PAGE_SIZE};
+use uefi::boot::{AllocateType, MemoryType, OpenProtocolAttributes, OpenProtocolParams, PAGE_SIZE};
 use uefi::mem::memory_map::MemoryMap;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
@@ -65,7 +65,11 @@ fn main() -> Status {
     info!("Getting Graphics info...");
 
     let gop_handle = boot::get_handle_for_protocol::<GraphicsOutput>().unwrap();
-    let mut gop = boot::open_protocol_exclusive::<GraphicsOutput>(gop_handle).unwrap();
+    
+    // SAFETY: we're just getting information, not changing anything (like the mode) so shared access is fine
+    let mut gop = unsafe {
+        boot::open_protocol::<GraphicsOutput>(OpenProtocolParams { handle: gop_handle, agent: boot::image_handle(), controller: None }, OpenProtocolAttributes::GetProtocol)
+    }.expect("Failed to get GraphicsOutput");
     
     info!("Opened Graphics Output");
     

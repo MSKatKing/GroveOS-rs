@@ -6,6 +6,7 @@ use core::ptr::NonNull;
 use goblin::elf::Elf;
 use log::info;
 use uefi::boot::MemoryType;
+use uefi::boot::{AllocateType, MemoryType, PAGE_SIZE};
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileInfo, FileMode};
@@ -64,4 +65,50 @@ fn load_kernel() -> Option<FileHandle> {
     let mut directory = fs.open_volume().ok()?;
 
     directory.open(cstr16!("kernel.elf"), FileMode::Read, FileAttribute::empty()).ok()
+}
+
+#[repr(align(0x1000))]
+struct PageTable {
+    entries: [u64; 512]
+}
+
+macro_rules! page_table_index {
+    ($addr:expr, $depth:expr) => {
+        ((($addr >> (12 + 9 *  $depth)) & 0x1FF) as usize)
+    };
+}
+
+const PAGE_PRESENT: u64 = 1 << 0;
+const PAGE_WRITE: u64 = 1 << 1;
+
+unsafe fn allocate_table() -> &'static mut PageTable {
+    let addr = boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, 1).unwrap();
+    let addr = addr.as_ptr() as *mut PageTable;
+    
+    let out = &mut *addr;
+    for i in 0..512 {
+        out.entries[i] = 0;
+    }
+
+    out
+}
+
+unsafe fn get_or_allocate_table(table: &mut PageTable, idx: usize, flags: u64) -> &'static mut PageTable {
+    if table.entries[idx] & PAGE_PRESENT != 0 {
+        let other = table.entries[idx] & !0xFFF;
+        let other = other as *mut PageTable;
+        &mut *other
+    } else {
+        let other = allocate_table();
+        table.entries[idx] = other as *mut PageTable as u64 | flags;
+        other
+    }
+}
+
+unsafe fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
+    let pdpt = get_or_allocate_table(pml4, page_table_index!(virt, 3), flags | PAGE_PRESENT);
+    let pd = get_or_allocate_table(pdpt, page_table_index!(virt, 2), flags | PAGE_PRESENT);
+    let pt =  get_or_allocate_table(pd, page_table_index!(virt, 1), flags | PAGE_PRESENT);
+
+    pt.entries[page_table_index!(virt, 0)] = (phys & !0xFFF) | PAGE_PRESENT | flags;
 }

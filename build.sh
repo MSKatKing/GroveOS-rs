@@ -1,9 +1,9 @@
 pushd uefi_loader
-cargo build --target x86_64-unknown-uefi
+cargo build --target x86_64-unknown-uefi || exit
 popd
 
 pushd kernel
-cargo build --target x86_64-unknown-none
+cargo build --target x86_64-unknown-none || exit
 popd
 
 mkdir -p esp/efi/boot

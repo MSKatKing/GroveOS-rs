@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "kernel",
+members = [
+    "kernel",
     "uefi_loader"
 ]
 
 [workspace.dependencies]
-x86_64 = "0.15.2"
+x86_64 = { version = "0.15.2", default-features = false }
 
 [dependencies]

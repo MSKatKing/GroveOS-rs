@@ -8,4 +8,7 @@ members = [ "kernel",
     "uefi_loader"
 ]
 
+[workspace.dependencies]
+x86_64 = "0.15.2"
+
 [dependencies]

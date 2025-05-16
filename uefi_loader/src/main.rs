@@ -49,7 +49,7 @@ fn main() -> Status {
         let header = unsafe { core::slice::from_raw_parts_mut(header.as_ptr(), info.file_size() as _) };
         let _ = kernel.read(header);
 
-        Elf::parse(header)
+        Elf::parse(header).expect("Kernel corrupt")
     };
 
     info!("Hello, world! (kernel loaded)");

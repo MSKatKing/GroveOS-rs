@@ -3,3 +3,4 @@
 /esp
 *.lock
 /.idea
+/qemu.log

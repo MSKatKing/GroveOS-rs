@@ -12,6 +12,9 @@ use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileInfo, FileMode};
 use uefi::proto::media::fs::SimpleFileSystem;
+use x86_64::PhysAddr;
+use x86_64::registers::control::{Cr3, Cr3Flags};
+use x86_64::structures::paging::PhysFrame;
 
 #[global_allocator]
 static ALLOCATOR: Allocator = Allocator;
@@ -97,6 +100,16 @@ fn main() -> Status {
     }
 
     info!("Finished mapping kernel! Entry @ {:x}", elf.entry);
+
+    let _final_map = unsafe {
+        boot::exit_boot_services(None)
+    };
+    
+    unsafe {
+        Cr3::write(PhysFrame::containing_address(PhysAddr::new(pml4 as *mut PageTable as _)), Cr3Flags::empty());
+
+        core::mem::transmute::<u64, unsafe extern "C" fn()>(elf.entry)();
+    }
 
     loop { }
 }

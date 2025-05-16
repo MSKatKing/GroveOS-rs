@@ -9,6 +9,7 @@ use log::info;
 use uefi::boot::{AllocateType, MemoryType, PAGE_SIZE};
 use uefi::mem::memory_map::MemoryMap;
 use uefi::prelude::*;
+use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileInfo, FileMode};
 use uefi::proto::media::fs::SimpleFileSystem;
@@ -60,6 +61,18 @@ fn main() -> Status {
 
         (Elf::parse(header).expect("Kernel corrupt"), kernel_file)
     };
+    
+    info!("Getting Graphics info...");
+
+    let gop_handle = boot::get_handle_for_protocol::<GraphicsOutput>().unwrap();
+    let mut gop = boot::open_protocol_exclusive::<GraphicsOutput>(gop_handle).unwrap();
+    
+    info!("Opened Graphics Output");
+    
+    let framebuffer = unsafe {
+        let (width, height) = gop.current_mode_info().resolution();
+        core::slice::from_raw_parts_mut(gop.frame_buffer().as_mut_ptr() as *mut u64, width * height * gop.current_mode_info().stride())
+    };
 
     let pml4 = unsafe { allocate_table() };
 
@@ -105,10 +118,14 @@ fn main() -> Status {
         boot::exit_boot_services(None)
     };
     
+    let boot_info = UEFIBootInfo {
+        framebuffer,
+    };
+    
     unsafe {
         Cr3::write(PhysFrame::containing_address(PhysAddr::new(pml4 as *mut PageTable as _)), Cr3Flags::empty());
 
-        core::mem::transmute::<u64, unsafe extern "C" fn()>(elf.entry)();
+        core::mem::transmute::<u64, unsafe extern "C" fn(UEFIBootInfo)>(elf.entry)(boot_info);
     }
 
     loop { }
@@ -167,4 +184,8 @@ unsafe fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
     let pt =  get_or_allocate_table(pd, page_table_index!(virt, 1), flags | PAGE_PRESENT);
 
     pt.entries[page_table_index!(virt, 0)] = (phys & !0xFFF) | PAGE_PRESENT | flags;
+}
+
+struct UEFIBootInfo {
+    framebuffer: &'static mut [u64],
 }

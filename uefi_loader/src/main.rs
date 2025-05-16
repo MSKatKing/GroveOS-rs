@@ -4,6 +4,7 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
 use goblin::elf::Elf;
+use goblin::elf::program_header::PT_LOAD;
 use log::info;
 use uefi::boot::{AllocateType, MemoryType, PAGE_SIZE};
 use uefi::mem::memory_map::MemoryMap;
@@ -43,14 +44,18 @@ fn main() -> Status {
 
     let mut kernel = kernel.into_regular_file().unwrap();
 
-    let _elf = {
+    let (elf, kernel_file) = {
         let header = boot::allocate_pool(MemoryType::LOADER_DATA, info.file_size() as _).unwrap();
 
         // SAFETY: the pointer that UEFI returns has the length passed in, so creating a fat pointer is ok
+        let kernel_file = unsafe { core::slice::from_raw_parts_mut(header.as_ptr(), info.file_size() as _) };
         let header = unsafe { core::slice::from_raw_parts_mut(header.as_ptr(), info.file_size() as _) };
+
+        // Trick here, since header and kernel_file point to the same spot, we only need to write to one
+        // Having both just gets around the compiler complaining about header being borrowed by Elf::parse()
         let _ = kernel.read(header);
 
-        Elf::parse(header).expect("Kernel corrupt")
+        (Elf::parse(header).expect("Kernel corrupt"), kernel_file)
     };
 
     let pml4 = unsafe { allocate_table() };
@@ -80,6 +85,18 @@ fn main() -> Status {
 
     info!("UEFI memory map copied!");
     info!("MemorySize found to be {}mb ({} bytes)", memsz * PAGE_SIZE / (1e+6 as usize), memsz * PAGE_SIZE);
+
+    for phdr in &elf.program_headers {
+        if phdr.p_type == PT_LOAD {
+            for i in 0..((phdr.p_memsz + 0x1000 - 1) / 0x1000) {
+                unsafe {
+                    map_page(pml4, phdr.p_vaddr + i * 0x1000, (kernel_file.as_ptr() as u64) + phdr.p_offset + i * 0x1000, PAGE_WRITE);
+                }
+            }
+        }
+    }
+
+    info!("Finished mapping kernel! Entry @ {:x}", elf.entry);
 
     loop { }
 }

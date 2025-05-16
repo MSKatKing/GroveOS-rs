@@ -5,8 +5,8 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
 use goblin::elf::Elf;
 use log::info;
-use uefi::boot::MemoryType;
 use uefi::boot::{AllocateType, MemoryType, PAGE_SIZE};
+use uefi::mem::memory_map::MemoryMap;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileInfo, FileMode};
@@ -53,9 +53,35 @@ fn main() -> Status {
         Elf::parse(header).expect("Kernel corrupt")
     };
 
-    info!("Hello, world! (kernel loaded)");
-    boot::stall(10_000_000);
-    Status::SUCCESS
+    let pml4 = unsafe { allocate_table() };
+
+    let prev_map = boot::memory_map(MemoryType::LOADER_DATA).unwrap();
+
+    let mut memsz = 0usize;
+
+    let excluded_types = [
+        MemoryType::RESERVED,
+        MemoryType::MMIO,
+        MemoryType::MMIO_PORT_SPACE,
+        MemoryType::UNUSABLE,
+        MemoryType::PAL_CODE,
+        MemoryType::PERSISTENT_MEMORY,
+    ];
+
+    for entry in prev_map.entries() {
+        if excluded_types.contains(&entry.ty) { continue; } // Skip reserved memory
+        memsz += entry.page_count as usize;
+        for i in 0..entry.page_count {
+            unsafe {
+                map_page(pml4, entry.phys_start + i * PAGE_SIZE as u64, (if entry.virt_start == 0 { entry.phys_start } else { entry.virt_start }) + i * PAGE_SIZE as u64, PAGE_WRITE);
+            }
+        }
+    }
+
+    info!("UEFI memory map copied!");
+    info!("MemorySize found to be {}mb ({} bytes)", memsz * PAGE_SIZE / (1e+6 as usize), memsz * PAGE_SIZE);
+
+    loop { }
 }
 
 fn load_kernel() -> Option<FileHandle> {

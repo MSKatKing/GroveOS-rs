@@ -8,8 +8,16 @@ unsafe extern "C" {
     static __kernel_vend: *const u64;
 }
 
+struct UEFIBootInfo {
+    framebuffer: &'static mut [u32],
+}
+
 #[unsafe(no_mangle)]
-pub extern "C" fn main() -> ! {
+pub extern "C" fn main(boot_info: UEFIBootInfo) -> ! {
+    for c in boot_info.framebuffer {
+        *c = 0;
+    }
+    
     loop {}
 }
 

@@ -1,12 +1,11 @@
 OUTPUT_FORMAT(elf64-x86-64)
-ENTRY(main)
+ENTRY(_start)
 
 KERNEL_OFFSET = 0xFFFFFFFF80000000;
-KERNEL_START = 0x100000;
 
 SECTIONS
 {
-    . = KERNEL_OFFSET + KERNEL_START;
+    . = KERNEL_OFFSET;
 
     __kernel_vstart = .;
 

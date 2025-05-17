@@ -1,4 +1,11 @@
-[target.x86_64-unknown-none]
+[target.x86_64-unknown-groveos]
 rustflags = [
-    "-C", "link-arg=-Tkernel/link.ld"
+    "-C", "link-arg=-Tkernel/link.ld", "-C", "link-arg=--strip-all"
 ]
+
+[build]
+target = "x86_64-unknown-groveos.json"
+
+[unstable]
+build-std-features = ["compiler-builtins-mem"]
+build-std = ["core", "compiler_builtins"]

@@ -13,7 +13,7 @@ struct UEFIBootInfo {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn main(boot_info: UEFIBootInfo) -> ! {
+pub extern "C" fn _start(boot_info: UEFIBootInfo) -> ! {
     for c in boot_info.framebuffer {
         *c = 0;
     }

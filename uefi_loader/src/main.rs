@@ -74,8 +74,8 @@ fn main() -> Status {
     info!("Opened Graphics Output");
     
     let framebuffer = unsafe {
-        let (width, height) = gop.current_mode_info().resolution();
-        core::slice::from_raw_parts_mut(gop.frame_buffer().as_mut_ptr() as *mut u64, width * height * gop.current_mode_info().stride())
+        let (_, height) = gop.current_mode_info().resolution();
+        core::slice::from_raw_parts_mut(gop.frame_buffer().as_mut_ptr() as *mut u32, height * gop.current_mode_info().stride())
     };
 
     let pml4 = unsafe { allocate_table() };
@@ -191,5 +191,5 @@ unsafe fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
 }
 
 struct UEFIBootInfo {
-    framebuffer: &'static mut [u64],
+    framebuffer: &'static mut [u32],
 }

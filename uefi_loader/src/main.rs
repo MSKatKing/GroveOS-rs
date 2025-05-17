@@ -2,6 +2,7 @@
 #![no_std]
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::arch::asm;
 use core::ptr::NonNull;
 use goblin::elf::Elf;
 use goblin::elf::program_header::PT_LOAD;
@@ -13,9 +14,6 @@ use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileInfo, FileMode};
 use uefi::proto::media::fs::SimpleFileSystem;
-use x86_64::PhysAddr;
-use x86_64::registers::control::{Cr3, Cr3Flags};
-use x86_64::structures::paging::PhysFrame;
 
 #[global_allocator]
 static ALLOCATOR: Allocator = Allocator;
@@ -127,7 +125,8 @@ fn main() -> Status {
     };
     
     unsafe {
-        Cr3::write(PhysFrame::containing_address(PhysAddr::new(pml4 as *mut PageTable as _)), Cr3Flags::empty());
+        let pml4 = pml4 as *mut PageTable as u64;
+        asm!("mov cr3, {pml4}", pml4 = in(reg) pml4);
 
         core::mem::transmute::<u64, unsafe extern "C" fn(UEFIBootInfo)>(elf.entry)(boot_info);
     }

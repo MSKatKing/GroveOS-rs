@@ -84,8 +84,6 @@ fn main() -> Status {
 
     let excluded_types = [
         MemoryType::RESERVED,
-        MemoryType::MMIO,
-        MemoryType::MMIO_PORT_SPACE,
         MemoryType::UNUSABLE,
         MemoryType::PAL_CODE,
         MemoryType::PERSISTENT_MEMORY,
@@ -115,6 +113,10 @@ fn main() -> Status {
     }
 
     info!("Finished mapping kernel! Entry @ {:x}", elf.entry);
+    
+    for i in 0..(((framebuffer.len() * size_of::<u32>()) + 0x1000 - 1) / 0x1000) as u64 {
+        unsafe { map_page(pml4, framebuffer.as_ptr() as u64 + i, framebuffer.as_ptr() as u64 + i, PAGE_WRITE); }
+    }
 
     let _final_map = unsafe {
         boot::exit_boot_services(None)

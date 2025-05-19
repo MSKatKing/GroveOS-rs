@@ -104,9 +104,17 @@ fn main() -> Status {
 
     for phdr in &elf.program_headers {
         if phdr.p_type == PT_LOAD {
+            // We need to copy the parts of the header to page-aligned spaces.
+            // The kernel code doesn't really care where it's placed, since it'll just use the contiguous virtual space
+            let pages = ((phdr.p_memsz + 0x1000 - 1) / 0x1000);
+            let allocated_space = boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages as _).expect("Failed to allocate correct pages for kernel elf");
+            
             for i in 0..((phdr.p_memsz + 0x1000 - 1) / 0x1000) {
                 unsafe {
-                    map_page(pml4, phdr.p_vaddr + i * 0x1000, (kernel_file.as_ptr() as u64) + phdr.p_offset + i * 0x1000, PAGE_WRITE);
+                    kernel_file.as_ptr().offset(i as isize * 0x1000 + phdr.p_offset as isize)
+                        .copy_to_nonoverlapping(allocated_space.as_ptr().offset(i as isize * 0x1000), PAGE_SIZE);
+                    
+                    map_page(pml4, phdr.p_vaddr + i * 0x1000, allocated_space.as_ptr() as u64 + i * 0x1000, PAGE_WRITE);
                 }
             }
         }
@@ -130,10 +138,8 @@ fn main() -> Status {
         let pml4 = pml4 as *mut PageTable as u64;
         asm!("mov cr3, {pml4}", pml4 = in(reg) pml4);
 
-        core::mem::transmute::<u64, unsafe extern "C" fn(UEFIBootInfo)>(elf.entry)(boot_info);
+        core::mem::transmute::<*const (), unsafe extern "C" fn(UEFIBootInfo) -> !>(elf.entry as _)(boot_info);
     }
-
-    loop { }
 }
 
 fn load_kernel() -> Option<FileHandle> {

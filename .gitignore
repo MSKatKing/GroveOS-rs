@@ -4,3 +4,4 @@
 *.lock
 /.idea
 /qemu.log
+/ndisasm.txt

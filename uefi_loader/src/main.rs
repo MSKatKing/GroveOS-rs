@@ -99,7 +99,7 @@ fn main() -> Status {
     info!("Finished mapping kernel! Entry @ {:x}", elf.entry);
     
     for i in 0..(((framebuffer.len() * size_of::<u32>()) + 0x1000 - 1) / 0x1000) as u64 {
-        unsafe { map_page(pml4, framebuffer.as_ptr() as u64 + i, framebuffer.as_ptr() as u64 + i, PAGE_WRITE); }
+        unsafe { map_page(pml4, framebuffer.as_ptr() as u64 + i * 0x1000, framebuffer.as_ptr() as u64 + i * 0x1000, PAGE_WRITE); }
     }
     
     let boot_info = boot::allocate_pool(MemoryType::LOADER_DATA, size_of::<UEFIBootInfo>()).unwrap();

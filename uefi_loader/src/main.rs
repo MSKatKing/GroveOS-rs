@@ -125,22 +125,32 @@ fn main() -> Status {
     for i in 0..(((framebuffer.len() * size_of::<u32>()) + 0x1000 - 1) / 0x1000) as u64 {
         unsafe { map_page(pml4, framebuffer.as_ptr() as u64 + i, framebuffer.as_ptr() as u64 + i, PAGE_WRITE); }
     }
+    
+    let boot_info = boot::allocate_pool(MemoryType::LOADER_DATA, size_of::<UEFIBootInfo>()).unwrap();
+    let boot_info = boot_info.as_ptr() as *mut UEFIBootInfo;
+    unsafe {
+        (*boot_info).framebuffer = framebuffer.as_mut_ptr();
+        (*boot_info).framebuffer_size = framebuffer.len();
+    }
+
+    info!("BootInfo at {:x?}", boot_info);
 
     let _final_map = unsafe {
         boot::exit_boot_services(None)
     };
     
-    let boot_info = UEFIBootInfo {
-        framebuffer: framebuffer.as_mut_ptr(),
-        framebuffer_size: framebuffer.len(),
-    };
-    
-    unsafe {
+    let kernel_main: extern "C" fn() -> ! = unsafe {
         let pml4 = pml4 as *mut PageTable as u64;
         asm!("mov cr3, {pml4}", pml4 = in(reg) pml4);
 
-        core::mem::transmute::<*const (), unsafe extern "C" fn(UEFIBootInfo) -> !>(elf.entry as _)(boot_info);
+        core::mem::transmute(elf.entry as *const ())
+    };
+    
+    unsafe {
+        asm!("mov rdi, {boot_info}", boot_info = in(reg) boot_info);
     }
+    
+    kernel_main();
 }
 
 fn load_kernel() -> Option<FileHandle> {

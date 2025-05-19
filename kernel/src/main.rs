@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use core::arch::asm;
 use core::panic::PanicInfo;
 
 unsafe extern "C" {
@@ -15,7 +16,12 @@ pub struct UEFIBootInfo {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(boot_info: UEFIBootInfo) -> ! {
+pub extern "C" fn _start() -> ! {
+    let boot_info: u64;
+    unsafe {
+        asm!("mov {boot_info}, rdi", boot_info = out(reg) boot_info);
+    }
+    let boot_info = unsafe { &*(boot_info as *const UEFIBootInfo) };
     for c in 0..boot_info.framebuffer_size {
         unsafe {
             *boot_info.framebuffer.offset(c as isize) = 0xFFFFFFFF;

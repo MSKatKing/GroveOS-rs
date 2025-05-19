@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+mod screen;
+
 use core::arch::asm;
 use core::panic::PanicInfo;
 

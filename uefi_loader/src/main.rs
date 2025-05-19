@@ -78,30 +78,6 @@ fn main() -> Status {
 
     let pml4 = unsafe { allocate_table() };
 
-    let prev_map = boot::memory_map(MemoryType::LOADER_DATA).unwrap();
-
-    let mut memsz = 0usize;
-
-    let excluded_types = [
-        MemoryType::RESERVED,
-        MemoryType::UNUSABLE,
-        MemoryType::PAL_CODE,
-        MemoryType::PERSISTENT_MEMORY,
-    ];
-
-    for entry in prev_map.entries() {
-        if excluded_types.contains(&entry.ty) { continue; } // Skip reserved memory
-        memsz += entry.page_count as usize;
-        for i in 0..entry.page_count {
-            unsafe {
-                map_page(pml4, entry.phys_start + i * PAGE_SIZE as u64, (if entry.virt_start == 0 { entry.phys_start } else { entry.virt_start }) + i * PAGE_SIZE as u64, PAGE_WRITE);
-            }
-        }
-    }
-
-    info!("UEFI memory map copied!");
-    info!("MemorySize found to be {}mb ({} bytes)", memsz * PAGE_SIZE / (1e+6 as usize), memsz * PAGE_SIZE);
-
     for phdr in &elf.program_headers {
         if phdr.p_type == PT_LOAD {
             // We need to copy the parts of the header to page-aligned spaces.
@@ -133,6 +109,29 @@ fn main() -> Status {
         (*boot_info).framebuffer_size = framebuffer.len();
     }
 
+    let prev_map = boot::memory_map(MemoryType::LOADER_DATA).unwrap();
+
+    let mut memsz = 0usize;
+
+    let excluded_types = [
+        MemoryType::RESERVED,
+        MemoryType::UNUSABLE,
+        MemoryType::PAL_CODE,
+        MemoryType::PERSISTENT_MEMORY,
+    ];
+
+    for entry in prev_map.entries() {
+        if excluded_types.contains(&entry.ty) { continue; } // Skip reserved memory
+        memsz += entry.page_count as usize;
+        for i in 0..entry.page_count {
+            unsafe {
+                map_page(pml4, entry.phys_start + i * PAGE_SIZE as u64, (if entry.virt_start == 0 { entry.phys_start } else { entry.virt_start }) + i * PAGE_SIZE as u64, PAGE_WRITE);
+            }
+        }
+    }
+
+    info!("UEFI memory map copied!");
+    info!("MemorySize found to be {}mb ({} bytes)", memsz * PAGE_SIZE / (1e+6 as usize), memsz * PAGE_SIZE);
     info!("BootInfo at {:x?}", boot_info);
 
     let _final_map = unsafe {

@@ -6,7 +6,7 @@ Welcome to the repository of GroveOS!
 
 ### What is GroveOS?
 
-GroveOS is a Rust-based operating system built from scratch mostly as a hobby. This codebase is accompanied by a collection of blog-style pages explaining a lot of what the code does. If anyone is looking at building their own operating system, I hope that those pages prove to be helpful. The pages can be found at
+GroveOS is a Rust-based operating system built from scratch mostly as a hobby. This codebase is accompanied by a collection of blog-style pages explaining a lot of what the code does. If anyone is looking at building their own operating system, I hope that those pages prove to be helpful. The pages can be found [here](https://dinoslice.com/grove-os/).
 
 ### Roadmap
 
@@ -23,3 +23,7 @@ GroveOS is a Rust-based operating system built from scratch mostly as a hobby. T
 - [ ] More advanced kernel API / libc
 - [ ] Kernel self-updater
 - [ ] Support PE executables and libraries (exe/dll)
+
+### Thanks
+
+Special thanks so Scott Fial for the [Tamsyn](http://www.fial.com/~scott/tamsyn-font/) font used in the kernel!

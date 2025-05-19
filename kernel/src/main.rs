@@ -8,14 +8,18 @@ unsafe extern "C" {
     static __kernel_vend: *const u64;
 }
 
-struct UEFIBootInfo {
-    framebuffer: &'static mut [u32],
+#[repr(C)]
+pub struct UEFIBootInfo {
+    framebuffer: *mut u32,
+    framebuffer_size: usize,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(boot_info: UEFIBootInfo) -> ! {
-    for c in boot_info.framebuffer {
-        *c = 0;
+    for c in 0..boot_info.framebuffer_size {
+        unsafe {
+            *boot_info.framebuffer.offset(c as isize) = 0xFFFFFFFF;
+        }
     }
     
     loop {}

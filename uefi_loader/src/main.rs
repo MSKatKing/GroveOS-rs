@@ -131,7 +131,8 @@ fn main() -> Status {
     };
     
     let boot_info = UEFIBootInfo {
-        framebuffer,
+        framebuffer: framebuffer.as_mut_ptr(),
+        framebuffer_size: framebuffer.len(),
     };
     
     unsafe {
@@ -197,6 +198,8 @@ unsafe fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
     pt.entries[page_table_index!(virt, 0)] = (phys & !0xFFF) | PAGE_PRESENT | flags;
 }
 
+#[repr(C)]
 struct UEFIBootInfo {
-    framebuffer: &'static mut [u32],
+    framebuffer: *mut u32,
+    framebuffer_size: usize
 }

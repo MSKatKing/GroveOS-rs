@@ -25,11 +25,6 @@ SECTIONS
         . = ALIGN(0x1000);
     }
 
-    .eh_frame : AT(ADDR(.eh_frame) - KERNEL_OFFSET) {
-        *(.eh_frame)
-        . = ALIGN(0x1000);
-    }
-
     .bss : AT(ADDR(.bss) - KERNEL_OFFSET) {
         *(.bss*)
         *(COMMON)
@@ -41,5 +36,6 @@ SECTIONS
     /DISCARD/ : {
         *(.comment)
         *(note.*)
+        *(.eh_frame)
     }
 }

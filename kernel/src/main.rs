@@ -5,6 +5,7 @@ mod screen;
 
 use core::arch::asm;
 use core::panic::PanicInfo;
+use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -29,8 +30,11 @@ pub extern "C" fn _start() -> ! {
         & *(boot_info as *const UEFIBootInfo)
     };
     
+    init_writer(FramebufferWriter::from(boot_info));
     
     framebuffer_writer().clear();
+    
+    println!("Hello, world!");
     
     loop {}
 }

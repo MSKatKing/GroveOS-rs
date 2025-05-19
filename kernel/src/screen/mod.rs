@@ -111,3 +111,35 @@ impl Write for FramebufferWriter {
         Ok(())
     }
 }
+
+static mut FRAMEBUFFER_WRITER: Option<FramebufferWriter> = None;
+
+pub fn init_writer(writer: FramebufferWriter) {
+    // SAFETY: for now, our os is single-threaded, so using a global writer is fine
+    unsafe {
+        FRAMEBUFFER_WRITER = Some(writer)
+    }
+}
+
+pub fn framebuffer_writer() -> &'static mut FramebufferWriter {
+    // SAFETY: for now, our os is single-threaded, so using a global writer is fine
+    unsafe {
+        #[allow(static_mut_refs)]
+        FRAMEBUFFER_WRITER.as_mut().unwrap()
+    }
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ({
+        use core::fmt::Write;
+        $crate::screen::framebuffer_writer().write_fmt(format_args!($($arg)*)).unwrap();
+    });
+}
+
+#[macro_export]
+macro_rules! println {
+    () => (print!("\n"));
+    ($fmt:expr) => (print!(concat!($fmt, "\n")));
+    ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
+}

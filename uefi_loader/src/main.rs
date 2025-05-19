@@ -83,7 +83,7 @@ fn main() -> Status {
         if phdr.p_type == PT_LOAD {
             // We need to copy the parts of the header to page-aligned spaces.
             // The kernel code doesn't really care where it's placed, since it'll just use the contiguous virtual space
-            let pages = ((phdr.p_memsz + 0x1000 - 1) / 0x1000);
+            let pages = (phdr.p_memsz + 0x1000 - 1) / 0x1000;
             let allocated_space = boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages as _).expect("Failed to allocate correct pages for kernel elf");
             
             for i in 0..((phdr.p_memsz + 0x1000 - 1) / 0x1000) {

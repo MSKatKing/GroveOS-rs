@@ -25,11 +25,12 @@ pub extern "C" fn _start() -> ! {
         & *(boot_info as *const UEFIBootInfo)
     };
     
-    for c in 0..boot_info.framebuffer_size {
-        // SAFETY: the framebuffer's size is known, so using .offset is alright
-        unsafe {
-            *boot_info.framebuffer.offset(c as isize) = 0xFFFFFFFF;
-        }
+    let framebuffer = unsafe {
+        core::slice::from_raw_parts_mut(boot_info.framebuffer, boot_info.framebuffer_size)
+    };
+    
+    for c in framebuffer {
+        *c = 0xFFFFFFFF;
     }
     
     loop {}

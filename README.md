@@ -1,5 +1,7 @@
 # GroveOS
 
+[![Rust](https://github.com/MSKatKing/GroveOS-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/MSKatKing/GroveOS-rs/actions/workflows/rust.yml)
+
 Welcome to the repository of GroveOS!
 
 ### What is GroveOS?

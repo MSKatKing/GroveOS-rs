@@ -9,7 +9,4 @@ members = [
     "uefi_loader"
 ]
 
-[workspace.dependencies]
-x86_64 = { version = "0.15.2", default-features = false }
-
 [dependencies]

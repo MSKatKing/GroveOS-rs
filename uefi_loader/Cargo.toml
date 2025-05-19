@@ -7,4 +7,3 @@ edition = "2021"
 goblin = { version = "0.9.3", features = ["elf32", "elf64", "endian_fd"], default-features = false }
 log = "0.4.27"
 uefi = { version = "0.35.0", features = ["logger", "panic_handler"] }
-x86_64 = { workspace = true, features = ["instructions"] }

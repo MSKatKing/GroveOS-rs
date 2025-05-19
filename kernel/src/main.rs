@@ -25,6 +25,7 @@ pub extern "C" fn _start() -> ! {
         & *(boot_info as *const UEFIBootInfo)
     };
     
+    // SAFETY: we can build the slice because we know the base and the size for certain
     let framebuffer = unsafe {
         core::slice::from_raw_parts_mut(boot_info.framebuffer, boot_info.framebuffer_size)
     };

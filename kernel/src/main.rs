@@ -11,8 +11,10 @@ unsafe extern "C" {
 
 #[repr(C)]
 pub struct UEFIBootInfo {
-    framebuffer: *mut u32,
-    framebuffer_size: usize,
+    pub framebuffer: *mut u32,
+    pub framebuffer_size: usize,
+    pub framebuffer_width: usize,
+    pub framebuffer_height: usize,
 }
 
 #[unsafe(no_mangle)]

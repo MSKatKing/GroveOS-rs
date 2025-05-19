@@ -72,9 +72,9 @@ fn main() -> Status {
     info!("Opened Graphics Output");
     
     // SAFETY: if the GraphicsOutput protocol opened successfully, then the framebuffer should contain a valid address
-    let framebuffer = unsafe {
-        let (_, height) = gop.current_mode_info().resolution();
-        core::slice::from_raw_parts_mut(gop.frame_buffer().as_mut_ptr() as *mut u32, height * gop.current_mode_info().stride())
+    let (framebuffer, width, height) = unsafe {
+        let (width, height) = gop.current_mode_info().resolution();
+        (core::slice::from_raw_parts_mut(gop.frame_buffer().as_mut_ptr() as *mut u32, height * gop.current_mode_info().stride()), width, height)
     };
 
     let pml4 = allocate_table();
@@ -111,6 +111,8 @@ fn main() -> Status {
     unsafe {
         (*boot_info).framebuffer = framebuffer.as_mut_ptr();
         (*boot_info).framebuffer_size = framebuffer.len();
+        (*boot_info).framebuffer_width = width;
+        (*boot_info).framebuffer_height = height;
     }
 
     let prev_map = boot::memory_map(MemoryType::LOADER_DATA).unwrap();
@@ -220,5 +222,7 @@ fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
 #[repr(C)]
 struct UEFIBootInfo {
     framebuffer: *mut u32,
-    framebuffer_size: usize
+    framebuffer_size: usize,
+    framebuffer_width: usize,
+    framebuffer_height: usize,
 }

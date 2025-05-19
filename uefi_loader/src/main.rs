@@ -71,12 +71,13 @@ fn main() -> Status {
     
     info!("Opened Graphics Output");
     
+    // SAFETY: if the GraphicsOutput protocol opened successfully, then the framebuffer should contain a valid address
     let framebuffer = unsafe {
         let (_, height) = gop.current_mode_info().resolution();
         core::slice::from_raw_parts_mut(gop.frame_buffer().as_mut_ptr() as *mut u32, height * gop.current_mode_info().stride())
     };
 
-    let pml4 = unsafe { allocate_table() };
+    let pml4 = allocate_table();
 
     for phdr in &elf.program_headers {
         if phdr.p_type == PT_LOAD {
@@ -86,12 +87,13 @@ fn main() -> Status {
             let allocated_space = boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, pages as _).expect("Failed to allocate correct pages for kernel elf");
             
             for i in 0..((phdr.p_memsz + 0x1000 - 1) / 0x1000) {
+                // SAFETY: both kernel_file and allocated_space are valid pointers, and the length is within bounds, so .offset and .copy_to_nonoverlapping are safe to use
                 unsafe {
                     kernel_file.as_ptr().offset(i as isize * 0x1000 + phdr.p_offset as isize)
                         .copy_to_nonoverlapping(allocated_space.as_ptr().offset(i as isize * 0x1000), PAGE_SIZE);
-                    
-                    map_page(pml4, phdr.p_vaddr + i * 0x1000, allocated_space.as_ptr() as u64 + i * 0x1000, PAGE_WRITE);
                 }
+
+                map_page(pml4, phdr.p_vaddr + i * 0x1000, allocated_space.as_ptr() as u64 + i * 0x1000, PAGE_WRITE);
             }
         }
     }
@@ -99,11 +101,13 @@ fn main() -> Status {
     info!("Finished mapping kernel! Entry @ {:x}", elf.entry);
     
     for i in 0..(((framebuffer.len() * size_of::<u32>()) + 0x1000 - 1) / 0x1000) as u64 {
-        unsafe { map_page(pml4, framebuffer.as_ptr() as u64 + i * 0x1000, framebuffer.as_ptr() as u64 + i * 0x1000, PAGE_WRITE); }
+        map_page(pml4, framebuffer.as_ptr() as u64 + i * 0x1000, framebuffer.as_ptr() as u64 + i * 0x1000, PAGE_WRITE);
     }
     
     let boot_info = boot::allocate_pool(MemoryType::LOADER_DATA, size_of::<UEFIBootInfo>()).unwrap();
     let boot_info = boot_info.as_ptr() as *mut UEFIBootInfo;
+    
+    // SAFETY: allocate_pool returns a valid pointer, so dereferencing it is safe
     unsafe {
         (*boot_info).framebuffer = framebuffer.as_mut_ptr();
         (*boot_info).framebuffer_size = framebuffer.len();
@@ -124,9 +128,7 @@ fn main() -> Status {
         if excluded_types.contains(&entry.ty) { continue; } // Skip reserved memory
         memsz += entry.page_count as usize;
         for i in 0..entry.page_count {
-            unsafe {
-                map_page(pml4, entry.phys_start + i * PAGE_SIZE as u64, (if entry.virt_start == 0 { entry.phys_start } else { entry.virt_start }) + i * PAGE_SIZE as u64, PAGE_WRITE);
-            }
+            map_page(pml4, entry.phys_start + i * PAGE_SIZE as u64, (if entry.virt_start == 0 { entry.phys_start } else { entry.virt_start }) + i * PAGE_SIZE as u64, PAGE_WRITE);
         }
     }
 
@@ -134,10 +136,13 @@ fn main() -> Status {
     info!("MemorySize found to be {}mb ({} bytes)", memsz * PAGE_SIZE / (1e+6 as usize), memsz * PAGE_SIZE);
     info!("BootInfo at {:x?}", boot_info);
 
+    // SAFETY: the uefi crate should handle exiting boot services safely
     let _final_map = unsafe {
         boot::exit_boot_services(None)
     };
     
+    // SAFETY: the asm! block is safe by only moving a value to a register.
+    // SAFETY: elf.entry should contain the entrypoint to the kernel, so turning it into a fn pointer is okay
     let kernel_main: extern "C" fn() -> ! = unsafe {
         let pml4 = pml4 as *mut PageTable as u64;
         asm!("mov cr3, {pml4}", pml4 = in(reg) pml4);
@@ -145,6 +150,7 @@ fn main() -> Status {
         core::mem::transmute(elf.entry as *const ())
     };
     
+    // SAFETY: this only moves the value into the register so is safe
     unsafe {
         asm!("mov rdi, {boot_info}", boot_info = in(reg) boot_info);
     }
@@ -175,11 +181,12 @@ macro_rules! page_table_index {
 const PAGE_PRESENT: u64 = 1 << 0;
 const PAGE_WRITE: u64 = 1 << 1;
 
-unsafe fn allocate_table() -> &'static mut PageTable {
+fn allocate_table() -> &'static mut PageTable {
     let addr = boot::allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, 1).unwrap();
     let addr = addr.as_ptr() as *mut PageTable;
     
-    let out = &mut *addr;
+    // SAFETY: allocate_pages returns a valid pointer, so dereferencing it is okay
+    let out = unsafe { &mut *addr };
     for i in 0..512 {
         out.entries[i] = 0;
     }
@@ -191,6 +198,8 @@ unsafe fn get_or_allocate_table(table: &mut PageTable, idx: usize, flags: u64) -
     if table.entries[idx] & PAGE_PRESENT != 0 {
         let other = table.entries[idx] & !0xFFF;
         let other = other as *mut PageTable;
+        
+        // NOT SAFE: we can't guarantee that the pointer is valid, but we're required to assume that it is. Hence, why this function is labeled as unsafe
         &mut *other
     } else {
         let other = allocate_table();
@@ -199,10 +208,11 @@ unsafe fn get_or_allocate_table(table: &mut PageTable, idx: usize, flags: u64) -
     }
 }
 
-unsafe fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
-    let pdpt = get_or_allocate_table(pml4, page_table_index!(virt, 3), flags | PAGE_PRESENT);
-    let pd = get_or_allocate_table(pdpt, page_table_index!(virt, 2), flags | PAGE_PRESENT);
-    let pt =  get_or_allocate_table(pd, page_table_index!(virt, 1), flags | PAGE_PRESENT);
+fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
+    // SAFETY: thus far, the pml4 should have only been built by this function, so get_or_allocate_table gets the values it's expecting and is thus safe to use
+    let pdpt = unsafe { get_or_allocate_table(pml4, page_table_index!(virt, 3), flags | PAGE_PRESENT) };
+    let pd = unsafe { get_or_allocate_table(pdpt, page_table_index!(virt, 2), flags | PAGE_PRESENT) };
+    let pt =  unsafe { get_or_allocate_table(pd, page_table_index!(virt, 1), flags | PAGE_PRESENT) };
 
     pt.entries[page_table_index!(virt, 0)] = (phys & !0xFFF) | PAGE_PRESENT | flags;
 }

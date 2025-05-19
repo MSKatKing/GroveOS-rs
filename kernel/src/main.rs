@@ -17,12 +17,16 @@ pub struct UEFIBootInfo {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    let boot_info: u64;
-    unsafe {
+    // SAFETY: rdi contains the address for the UEFIBootInfo passed in from the bootloader, so dereferencing the pointer is ok
+    let boot_info = unsafe {
+        let boot_info: u64;
         asm!("mov {boot_info}, rdi", boot_info = out(reg) boot_info);
-    }
-    let boot_info = unsafe { &*(boot_info as *const UEFIBootInfo) };
+        
+        & *(boot_info as *const UEFIBootInfo)
+    };
+    
     for c in 0..boot_info.framebuffer_size {
+        // SAFETY: the framebuffer's size is known, so using .offset is alright
         unsafe {
             *boot_info.framebuffer.offset(c as isize) = 0xFFFFFFFF;
         }

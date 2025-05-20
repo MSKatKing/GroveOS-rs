@@ -3,11 +3,13 @@
 
 mod screen;
 mod cpu;
+mod mem;
 
 use core::arch::{asm, naked_asm};
 use core::panic::PanicInfo;
 use crate::cpu::gdt::{install_gdt_defaults, lgdt};
 use crate::cpu::idt::lidt;
+use crate::mem::page_allocator::{init_frame_allocator, request_page, FrameAllocator};
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 
 unsafe extern "C" {
@@ -45,12 +47,17 @@ pub extern "C" fn _start() -> ! {
     
     framebuffer_writer().clear();
     
+    init_frame_allocator(FrameAllocator::from(boot_info));
+    
     println!("Initializing GDT...");
     install_gdt_defaults();
     lgdt();
     
     println!("Initializing IDT...");
     lidt();
+    
+    let page = request_page();
+    println!("{:x?}", page.as_ptr());
     
     loop {}
 }

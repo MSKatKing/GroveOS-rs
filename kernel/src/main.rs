@@ -2,6 +2,7 @@
 #![no_main]
 
 mod screen;
+mod cpu;
 
 use core::arch::asm;
 use core::panic::PanicInfo;

@@ -4,8 +4,10 @@
 mod screen;
 mod cpu;
 
-use core::arch::asm;
+use core::arch::{asm, naked_asm};
 use core::panic::PanicInfo;
+use crate::cpu::gdt::{install_gdt_defaults, lgdt};
+use crate::cpu::idt::lidt;
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 
 unsafe extern "C" {
@@ -23,6 +25,11 @@ pub struct UEFIBootInfo {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
+    // SAFETY: this is okay since were only disabling interrupts
+    unsafe {
+        asm!("cli");
+    }
+    
     // SAFETY: rdi contains the address for the UEFIBootInfo passed in from the bootloader, so dereferencing the pointer is ok
     let boot_info = unsafe {
         let boot_info: u64;
@@ -35,7 +42,12 @@ pub extern "C" fn _start() -> ! {
     
     framebuffer_writer().clear();
     
-    println!("Hello, world!");
+    println!("Initializing GDT...");
+    install_gdt_defaults();
+    lgdt();
+    
+    println!("Initializing IDT...");
+    lidt();
     
     loop {}
 }

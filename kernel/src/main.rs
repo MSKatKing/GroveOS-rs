@@ -21,6 +21,9 @@ pub struct UEFIBootInfo {
     pub framebuffer_size: usize,
     pub framebuffer_width: usize,
     pub framebuffer_height: usize,
+    
+    pub memory_bitmap: *mut u8,
+    pub memory_bitmap_size: usize,
 }
 
 #[unsafe(no_mangle)]

@@ -129,9 +129,22 @@ fn main() -> Status {
     for entry in prev_map.entries() {
         if excluded_types.contains(&entry.ty) { continue; } // Skip reserved memory
         memsz += entry.page_count as usize;
+    }
+    
+    let memory_bitmap_size = memsz / 8;
+    let memory_bitmap = boot::allocate_pool(MemoryType::LOADER_DATA, memory_bitmap_size).unwrap();
+    let memory_bitmap = memory_bitmap.as_ptr();
+
+    for entry in prev_map.entries() {
+        if excluded_types.contains(&entry.ty) { continue; } // Skip reserved memory
         for i in 0..entry.page_count {
             map_page(pml4, entry.phys_start + i * PAGE_SIZE as u64, (if entry.virt_start == 0 { entry.phys_start } else { entry.virt_start }) + i * PAGE_SIZE as u64, PAGE_WRITE);
         }
+    }
+    
+    unsafe {
+        (*boot_info).memory_bitmap_size = memory_bitmap_size;
+        (*boot_info).memory_bitmap = memory_bitmap;
     }
 
     info!("UEFI memory map copied!");
@@ -225,4 +238,7 @@ struct UEFIBootInfo {
     framebuffer_size: usize,
     framebuffer_width: usize,
     framebuffer_height: usize,
+
+    pub memory_bitmap: *mut u8,
+    pub memory_bitmap_size: usize,
 }

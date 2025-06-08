@@ -9,7 +9,8 @@ use core::arch::{asm, naked_asm};
 use core::panic::PanicInfo;
 use crate::cpu::gdt::{install_gdt_defaults, lgdt};
 use crate::cpu::idt::lidt;
-use crate::mem::page_allocator::{init_frame_allocator, request_page, FrameAllocator};
+use crate::mem::page_allocator::{FrameAllocator, PageIdx};
+use crate::mem::paging::PageTable;
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 
 unsafe extern "C" {
@@ -47,7 +48,7 @@ pub extern "C" fn _start() -> ! {
     
     framebuffer_writer().clear();
     
-    init_frame_allocator(FrameAllocator::from(boot_info));
+    FrameAllocator::init(boot_info);
     
     println!("Initializing GDT...");
     install_gdt_defaults();
@@ -56,8 +57,23 @@ pub extern "C" fn _start() -> ! {
     println!("Initializing IDT...");
     lidt();
     
-    let page = request_page();
+    // Point where all page functions can be used
+    
+    let mut page = PageIdx::next().unwrap().allocate().unwrap();
     println!("{:x?}", page.as_ptr());
+    
+    let pml4 = PageTable::current();
+    
+    pml4.get_mut(page.as_mut_ptr() as u64)
+        .map_to(page.as_mut_ptr() as u64)
+        .set_writable(true)
+        .set_user_accessible(true);
+    
+    let new_pml4 = PageTable::new();
+    
+    new_pml4[511] = pml4[511];
+    
+    new_pml4.install();
     
     loop {}
 }

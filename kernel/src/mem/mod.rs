@@ -1,2 +1,2 @@
 pub mod page_allocator;
-mod paging;
+pub mod paging;

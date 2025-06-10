@@ -76,11 +76,12 @@ pub extern "C" fn _start() -> ! {
     }
     
     new_pml4[511] = pml4[511];
-    println!("{:x?}", pml4[511]);
     
     new_pml4.install();
     
     println!("Initialized PML4...");
+    
+    // Point where all heap functions can be used.
     
     loop {}
 }

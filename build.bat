@@ -1,5 +1,5 @@
 pushd uefi_loader
-cargo build --target x86_64-unknown-uefi || exit /b
+cargo build || exit /b
 popd
 
 pushd kernel

@@ -2,6 +2,7 @@ use core::num::{NonZeroU64, NonZeroUsize};
 use core::ops::{Deref, DerefMut, Index, IndexMut};
 use core::ptr::NonNull;
 use core::slice;
+use crate::mem::paging::PageTable;
 use crate::UEFIBootInfo;
 
 #[derive(Copy, Clone)]
@@ -12,8 +13,26 @@ impl<'a> PageIdx {
         NonZeroU64::new(val).map(PageIdx)
     }
     
+    fn new_unchecked(val: u64) -> PageIdx {
+        PageIdx(NonZeroU64::new(val).unwrap())
+    }
+    
     pub fn next() -> Option<PageIdx> {
         FrameAllocator::get().get_next_idx()
+    }
+    
+    pub fn next_with_space(pages: u64) -> Option<PageIdx> {
+        let mut idx = FrameAllocator::get().get_next_idx().unwrap();
+        loop {
+            if FrameAllocator::get().is_free_for(idx, pages) {
+                return Some(idx);
+            } else if idx.0.get() + pages + 1 > FrameAllocator::get().bitmap.len() as u64 * 8 {
+                break;
+            } else {
+                idx = PageIdx::new(idx.0.get() + 1)?;
+            }
+        }
+        None
     }
     
     #[inline(always)]
@@ -25,12 +44,39 @@ impl<'a> PageIdx {
         FrameAllocator::get().is_page_free(self)
     }
     
+    /// Allocates this PageIdx if it is still free.
+    /// 
+    /// Returns `None` if the PageIdx is no longer free.
+    /// 
+    /// WARNING - The page returned by this function may or may not be mapped, it is the caller's responsibility to map this page into the PageTable.
     pub fn allocate(self) -> Option<Page<'a>> {
         if !self.is_free() {
             None
         } else {
+            FrameAllocator::get().set_page_used(self, true);
             let memory_address = NonNull::new((self.0.get() * Page::PAGE_SIZE as u64) as *mut u8).expect("should not be null");
             unsafe { Some(Page::from_raw_ptr(memory_address)) }
+        }
+    }
+
+    /// Allocates this PageIdx with length `pages` if it is still free.
+    ///
+    /// Returns `None` if the PageIdx is no longer free.
+    ///
+    /// WARNING - The page returned by this function may or may not be mapped, it is the caller's responsibility to map the pages into the PageTable.
+    pub fn allocate_multiple(self, pages: NonZeroU64) -> Option<Page<'a>> {
+        if !FrameAllocator::get().is_free_for(self, pages.get()) {
+            None
+        } else {
+            FrameAllocator::get().set_page_used(self, true);
+            let start = NonNull::new((self.0.get() * Page::PAGE_SIZE as u64) as *mut u8).expect("should not be null");
+            let start = unsafe { Page::with_page_count(start, pages) };
+            
+            for i in 0..pages.get() - 1 {
+                FrameAllocator::get().set_page_used(PageIdx::new_unchecked(i + 1), true);
+            }
+            
+            Some(start)
         }
     }
 }
@@ -44,6 +90,13 @@ impl<'a> Page<'a> {
         let slice = unsafe { slice::from_raw_parts_mut(ptr.as_ptr(), Self::PAGE_SIZE) };
         slice.fill(0);
         
+        Page(slice)
+    }
+
+    unsafe fn with_page_count(ptr: NonNull<u8>, pages: NonZeroU64) -> Self {
+        let slice = unsafe { slice::from_raw_parts_mut(ptr.as_ptr(), Self::PAGE_SIZE * pages.get() as usize) };
+        slice.fill(0);
+
         Page(slice)
     }
     
@@ -71,13 +124,14 @@ impl<'a> Page<'a> {
         unsafe { self.as_mut_ptr().cast::<T>().as_mut().expect("should not be null") }
     }
     
-    pub unsafe fn leak(mut self) -> NonNull<u8> {
+    pub unsafe fn leak(mut self) -> (NonNull<u8>, NonZeroU64) {
         let idx = self.idx();
         let ptr = NonNull::new(self.as_mut_ptr()).expect("should not be null");
+        let len = self.0.len() / Self::PAGE_SIZE;
         drop(self);
         
         FrameAllocator::get().set_page_used(idx, true);
-        ptr
+        (ptr, NonZeroU64::new(len as u64).expect("should not be zero"))
     }
     
     pub unsafe fn drop_type<T: Sized>(data: &mut T) {
@@ -102,7 +156,9 @@ impl DerefMut for Page<'_> {
 
 impl Drop for Page<'_> {
     fn drop(&mut self) {
-        FrameAllocator::get().set_page_used(self.idx(), false)
+        for i in 0..self.0.len() / Page::PAGE_SIZE {
+            FrameAllocator::get().set_page_used(PageIdx::new_unchecked(self.idx().0.get() + i as u64), false)
+        }
     }
 }
 
@@ -138,6 +194,15 @@ impl FrameAllocator {
         }
         
         None
+    }
+    
+    pub fn is_free_for(&self, idx: PageIdx, pages: u64) -> bool {
+        for i in 0..pages {
+            if !self.is_page_free(PageIdx::new(idx.0.get() + i).unwrap()) {
+                return false;
+            }
+        }
+        true
     }
     
     pub fn is_page_free(&self, idx: PageIdx) -> bool {

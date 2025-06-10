@@ -3,7 +3,7 @@ use core::arch::asm;
 use core::ops::{Index, IndexMut};
 
 #[repr(transparent)]
-#[derive(Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct PageTableEntry(u64);
 
 macro_rules! paging_idx {
@@ -18,7 +18,7 @@ impl PageTableEntry {
     const USER_ACCESSIBLE: u64 = 1 << 2;
     
     pub fn is_present(&self) -> bool {
-        (Self::PRESENT & self.0) != 0
+        (Self::PRESENT & self.0) != 0 && (self.get_addr() != 0)
     }
     
     pub fn get_addr(&self) -> u64 {
@@ -56,9 +56,10 @@ impl PageTable {
     pub fn new() -> &'static mut Self {
         let page = allocate_next_page().unwrap();
         
-        unsafe { (page.leak().as_ptr() as *mut PageTable).as_mut().expect("should not be null") }
+        unsafe { (page.leak().0.as_ptr() as *mut PageTable).as_mut().expect("should not be null") }
     }
     
+    #[inline(always)]
     pub fn current() -> &'static mut PageTable {
         let cr3: u64;
         unsafe {
@@ -78,10 +79,11 @@ impl PageTable {
     
     pub fn get_or_insert_with<F: FnOnce() -> &'static mut PageTable>(&mut self, idx: usize, f: F) -> &mut PageTable {
         if !self.0[idx].is_present() {
-            self.0[idx].map_to(&f() as *const _ as u64);
+            self.0[idx].map_to(f() as *mut _ as u64);
+            self.0[idx].set_writable(true);
         }
         
-        unsafe { (self.0[idx].get_addr() as *mut PageTable).as_mut().unwrap() }
+        unsafe { (self.0[idx].get_addr() as *mut PageTable).as_mut().expect("should not be null") }
     }
     
     pub fn get_mut(&mut self, virt: u64) -> &mut PageTableEntry {

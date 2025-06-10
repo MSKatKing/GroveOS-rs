@@ -93,6 +93,12 @@ impl Write for FramebufferWriter {
             self.cursor_x = 0;
             self.cursor_y += glyph_height;
         }
+        
+        if self.cursor_y >= self.height {
+            self.clear();
+            self.cursor_y = 0;
+            self.cursor_x = 0;
+        }
 
         Ok(())
     }

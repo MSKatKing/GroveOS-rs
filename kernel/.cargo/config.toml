@@ -8,4 +8,4 @@ target = "x86_64-unknown-groveos.json"
 
 [unstable]
 build-std-features = ["compiler-builtins-mem"]
-build-std = ["core", "compiler_builtins"]
+build-std = ["core", "compiler_builtins", "alloc"]

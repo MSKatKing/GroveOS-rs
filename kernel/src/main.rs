@@ -1,11 +1,16 @@
 #![no_std]
 #![no_main]
+#![feature(alloc_error_handler)]
+
+extern crate alloc;
 
 mod screen;
 mod cpu;
 mod mem;
 
-use crate::cpu::gdt::{install_gdt_defaults, lgdt};
+use alloc::vec::Vec;
+// use alloc::vec::Vec;
+use crate::cpu::gdt::{install_gdt_defaults, lgdt, GDTEntry};
 use crate::cpu::idt::lidt;
 use crate::mem::page_allocator::FrameAllocator;
 use crate::mem::paging::PageTable;
@@ -49,7 +54,7 @@ pub extern "C" fn _start() -> ! {
     framebuffer_writer().clear();
     
     FrameAllocator::init(boot_info);
-    
+
     println!("Initializing GDT...");
     install_gdt_defaults();
     lgdt();
@@ -68,7 +73,7 @@ pub extern "C" fn _start() -> ! {
             .map_to(i)
             .set_writable(true);
     }
-    
+
     for i in (0..boot_info.framebuffer_size as u64).step_by(0x1000) {
         new_pml4.get_mut(i + boot_info.framebuffer as u64)
             .map_to(i + boot_info.framebuffer as u64)
@@ -78,10 +83,13 @@ pub extern "C" fn _start() -> ! {
     new_pml4[511] = pml4[511];
     
     new_pml4.install();
-    
+
     println!("Initialized PML4...");
-    
+
     // Point where all heap functions can be used.
+
+    let mut test = Vec::<u8>::new();
+    test.push(124);
     
     loop {}
 }
@@ -90,5 +98,12 @@ pub extern "C" fn _start() -> ! {
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
     
+    loop { }
+}
+
+#[alloc_error_handler]
+fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
+    println!("allocation error: {:?}", layout);
+
     loop { }
 }

@@ -63,6 +63,7 @@ pub extern "C" fn lgdt() {
     #[unsafe(no_mangle)]
     fn lgdt_inner() {
         unsafe {
+            GDTP.limit = GDT_ENTRIES as u16 * size_of::<GDTEntry>() as u16 - 1;
             GDTP.base = &raw const GDT as u64;
 
             asm!("cli");

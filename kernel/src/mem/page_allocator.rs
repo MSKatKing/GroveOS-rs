@@ -86,14 +86,14 @@ pub struct Page<'a>(&'a mut [u8]);
 impl<'a> Page<'a> {
     pub const PAGE_SIZE: usize = 0x1000;
     
-    unsafe fn from_raw_ptr(ptr: NonNull<u8>) -> Self {
+    pub unsafe fn from_raw_ptr(ptr: NonNull<u8>) -> Self {
         let slice = unsafe { slice::from_raw_parts_mut(ptr.as_ptr(), Self::PAGE_SIZE) };
         slice.fill(0);
         
         Page(slice)
     }
 
-    unsafe fn with_page_count(ptr: NonNull<u8>, pages: NonZeroU64) -> Self {
+    pub unsafe fn with_page_count(ptr: NonNull<u8>, pages: NonZeroU64) -> Self {
         let slice = unsafe { slice::from_raw_parts_mut(ptr.as_ptr(), Self::PAGE_SIZE * pages.get() as usize) };
         slice.fill(0);
 
@@ -249,4 +249,8 @@ impl From<&UEFIBootInfo> for FrameAllocator {
 
 pub fn allocate_next_page<'a>() -> Option<Page<'a>> {
     PageIdx::next()?.allocate()
+}
+
+pub fn allocate_next_pages<'a>(count: usize) -> Option<Page<'a>> {
+    PageIdx::next_with_space(count as u64)?.allocate_multiple(NonZeroU64::new(count as u64)?)
 }

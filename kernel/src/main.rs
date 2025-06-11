@@ -88,8 +88,20 @@ pub extern "C" fn _start() -> ! {
 
     // Point where all heap functions can be used.
 
-    let mut test = Vec::<u8>::new();
-    test.push(124);
+    let mut test = Vec::<u8>::with_capacity(3);
+    test.push(0);
+    
+    println!("{:?}", test);
+    
+    test.push(1);
+    test.push(2);
+    
+    println!("{:?}", test);
+    
+    test.push(3);
+    test.push(4);
+    
+    println!("{:?}", test);
     
     loop {}
 }

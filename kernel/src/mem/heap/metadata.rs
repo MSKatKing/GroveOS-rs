@@ -1,3 +1,4 @@
+use core::ops::{Index, IndexMut};
 use core::ptr::NonNull;
 use crate::mem::heap::descriptor::HeapPageDescriptor;
 use crate::mem::heap::long::HeapLongTable;
@@ -27,4 +28,18 @@ pub enum HeapMetadataEntryType {
     Unallocated = 0,
     General(NonNull<HeapPageDescriptor>),
     LongTable(NonNull<HeapLongTable>),
+}
+
+impl Index<usize> for HeapMetadata {
+    type Output = HeapMetadataEntry;
+    
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.entries[index]
+    }
+}
+
+impl IndexMut<usize> for HeapMetadata {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.entries[index]
+    }
 }

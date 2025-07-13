@@ -105,6 +105,12 @@ impl PageTable {
         
         &mut pt.0[pt_idx]
     }
+    
+    pub fn identity_map(&mut self, virt: u64) {
+        self.get_mut(virt)
+            .map_to(virt)
+            .set_writable(true);
+    }
 }
 
 impl Index<usize> for PageTable {   

@@ -49,8 +49,38 @@ impl HeapMetadata {
         todo!()
     }
     
-    pub fn allocate(&mut self, len: usize) -> Option<&mut [u8]> {
-        todo!()
+    pub fn allocate(&mut self, len: usize) -> Option<&'static mut [u8]> {
+        if len <= PAGE_SIZE {
+            // Look through existing entries and check to see if any can allocate this len
+            for entry in &mut self.entries {
+                if entry.is_general_heap() && entry.can_store_alloc(len) {
+                    return entry.allocate(len);
+                }
+            }
+            
+            // Now try to allocate a new entry and allocate
+            for entry in &mut self.entries {
+                if entry.is_unallocated() {
+                    return if let Some(()) = entry.try_allocate_general_page() {
+                        entry.allocate(len)
+                    } else {
+                        // Return None here since try_allocate_general_page returns None if it couldn't get a page from the frame allocator,
+                        // most likely meaning that the device is out of memory, so no allocations can be made
+                        None
+                    }
+                }
+            }
+            
+            // If we're here then that means that the current metadata header doesn't have space for this allocation
+            if let Some(next) = &mut self.next {
+                unsafe { next.as_mut() }.allocate(len)
+            } else {
+                todo!("try allocate new header here")
+            }
+        } else {
+            // This is where long table allocation needs to happen
+            todo!()
+        }
     }
     
     pub fn deallocate(&mut self, ptr: NonNull<u8>) {

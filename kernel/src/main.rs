@@ -17,6 +17,7 @@ use crate::mem::paging::PageTable;
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 use core::arch::asm;
 use core::panic::PanicInfo;
+use crate::mem::heap::metadata::HeapMetadata;
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -85,6 +86,8 @@ pub extern "C" fn _start() -> ! {
     new_pml4.install();
 
     println!("Initialized PML4...");
+    
+    unsafe { HeapMetadata::init_heap(); }
 
     // Point where all heap functions can be used.
 

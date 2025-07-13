@@ -93,17 +93,11 @@ pub extern "C" fn _start() -> ! {
     
     println!("{:?}", test);
     
-    test.push(1);
-    test.push(2);
-    
-    println!("{:?}", test);
-    
-    test.push(3);
-    test.push(4);
-    
-    println!("{:?}", test);
-    
-    loop {}
+    loop {
+        unsafe {
+            asm!("hlt");
+        }
+    }
 }
 
 #[panic_handler]

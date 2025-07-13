@@ -1,6 +1,7 @@
 use crate::mem::page_allocator::allocate_next_page;
 use core::arch::asm;
 use core::ops::{Index, IndexMut};
+use crate::{print, println};
 
 #[repr(transparent)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -28,6 +29,12 @@ impl PageTableEntry {
     pub fn map_to(&mut self, addr: u64) -> &mut Self {
         self.0 |= Self::PRESENT;
         self.0 |= addr & !0xFFF;
+        self
+    }
+    
+    pub fn unmap(&mut self) -> &mut Self {
+        self.map_to(0);
+        self.0 &= !Self::PRESENT;
         self
     }
     

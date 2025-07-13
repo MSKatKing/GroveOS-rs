@@ -49,7 +49,7 @@ impl HeapMetadata {
         todo!()
     }
     
-    pub fn allocate(&mut self, len: usize) -> Option<&[u8]> {
+    pub fn allocate(&mut self, len: usize) -> Option<&mut [u8]> {
         todo!()
     }
     

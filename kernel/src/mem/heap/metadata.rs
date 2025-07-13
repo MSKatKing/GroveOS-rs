@@ -43,3 +43,17 @@ impl IndexMut<usize> for HeapMetadata {
         &mut self.entries[index]
     }
 }
+
+impl HeapMetadata {
+    pub fn kernel() -> &'static mut Self {
+        todo!()
+    }
+    
+    pub fn allocate(&mut self, len: usize) -> Option<&[u8]> {
+        todo!()
+    }
+    
+    pub fn deallocate(&mut self, ptr: NonNull<u8>) {
+        todo!()
+    }
+}

@@ -48,9 +48,45 @@ impl IndexMut<usize> for HeapMetadata {
     }
 }
 
+static mut KERNEL_HEAP_START: NonNull<HeapMetadata> = NonNull::dangling();
+
 impl HeapMetadata {
-    pub fn kernel() -> &'static mut Self {
-        todo!()
+    pub unsafe fn kernel() -> &'static mut Self {
+        #[allow(static_mut_refs)]
+        unsafe {
+            KERNEL_HEAP_START.as_mut()
+        }
+    }
+    
+    pub unsafe fn init_heap() {
+        unsafe {
+            KERNEL_HEAP_START = Self::allocate_new_header().expect("failed to allocate start heap header");
+        }
+    }
+    
+    pub fn allocate_new_header() -> Option<NonNull<HeapMetadata>> {
+        let page = allocate_next_page()?;
+        let (ptr, _) = unsafe { page.leak() };
+        
+        println!("{}", ptr.as_ptr() as u64);
+        
+        const EMPTY_METADATA_ENTRY: HeapMetadataEntry = HeapMetadataEntry {
+            page: None,
+            max_free_offset: 0,
+            max_free_len: 0,
+            desc: HeapMetadataEntryType::Unallocated,
+        };
+        
+        const EMPTY_METADATA: HeapMetadata = HeapMetadata {
+            prev: None,
+            next: None,
+            entries: [EMPTY_METADATA_ENTRY; METADATA_ENTRY_COUNT],
+        };
+        
+        let ptr = ptr.cast::<HeapMetadata>();
+        unsafe { ptr.write(EMPTY_METADATA) }
+        
+        Some(ptr)
     }
     
     pub fn allocate(&mut self, len: usize) -> Option<&'static mut [u8]> {

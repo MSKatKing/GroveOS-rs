@@ -176,7 +176,7 @@ impl HeapMetadata {
 
 macro_rules! ptr_to_offset {
     ($ptr:expr) => {
-        $ptr.as_ptr() as usize & 0xFFF
+        ($ptr.as_ptr() as usize & 0xFFF) / 8
     };
 }
 

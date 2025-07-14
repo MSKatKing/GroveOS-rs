@@ -78,8 +78,8 @@ impl HeapPageDescriptor {
     pub fn try_expand_allocation(&mut self, offset: usize, new_len: usize) -> bool {
         let old_len = self.get_allocation_size(offset);
         
-        for i in offset + old_len..offset + new_len {
-            if self.get_type(i) != HeapPageDescriptorTag::Unused {
+        for i in (offset + old_len)..(offset + new_len) {
+            if self.get_type(i) != HeapPageDescriptorTag::Free {
                 return false;
             }
         }

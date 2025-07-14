@@ -49,6 +49,16 @@ impl IndexMut<usize> for HeapMetadata {
 
 static mut KERNEL_HEAP_START: NonNull<HeapMetadata> = NonNull::dangling();
 
+macro_rules! bytes_to_segments {
+    ($bytes:expr) => {
+        if $bytes % 8 == 0 {
+            $bytes / 8
+        } else {
+            $bytes / 8 + 1
+        }
+    };
+}
+
 impl HeapMetadata {
     pub unsafe fn kernel() -> &'static mut Self {
         #[allow(static_mut_refs)]
@@ -90,7 +100,7 @@ impl HeapMetadata {
     
     pub fn allocate(&mut self, len: usize) -> Option<&'static mut [u8]> {
         if len <= PAGE_SIZE {
-            let len = len / 8 + 1;
+            let len = bytes_to_segments!(len);
             
             // Look through existing entries and check to see if any can allocate this len
             for entry in self.entries.iter_mut() {
@@ -137,7 +147,7 @@ impl HeapMetadata {
     
     pub fn reallocate(&mut self, ptr: NonNull<u8>, len: usize) -> Option<&'static mut [u8]> {
         if len <= PAGE_SIZE {
-            let len = len / 8 + 1;
+            let len = bytes_to_segments!(len);
             
             for entry in self.entries.iter_mut() {
                 if entry.contains_ptr(ptr.as_ptr()) {

@@ -1,3 +1,4 @@
+use core::fmt::{Debug, Formatter};
 use crate::mem::heap::descriptor::HeapPageDescriptor;
 use crate::mem::heap::long::HeapLongTable;
 use crate::mem::heap::PAGE_SIZE;
@@ -260,6 +261,17 @@ impl HeapMetadataEntry {
                 }
             },
             _ => todo!()
+        }
+    }
+}
+
+impl Debug for HeapMetadataEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self.desc { 
+            HeapMetadataEntryType::General(ref inner) => {
+                write!(f, "{:?}", inner)
+            },
+            _ => write!(f, "unimplemented")
         }
     }
 }

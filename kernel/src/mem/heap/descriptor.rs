@@ -1,4 +1,5 @@
 use crate::mem::heap::{PAGE_SIZE, SEGMENT_SIZE};
+use core::fmt::{Debug, Formatter};
 
 pub const HEAP_PAGE_DESC_SIZE: usize = (PAGE_SIZE / SEGMENT_SIZE) / 4; // 4096 (page size) / 8 (segment size) / 4 (4 entries per byte)
 
@@ -8,7 +9,7 @@ pub struct HeapPageDescriptor {
 }
 
 #[repr(u8)]
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum HeapPageDescriptorTag {
     Free = 0b00,
     Used = 0b01,
@@ -119,5 +120,15 @@ impl HeapPageDescriptor {
         }
 
         (max_free_offset, max_free_len)
+    }
+}
+
+impl Debug for HeapPageDescriptor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        for i in 0..512 {
+            write!(f, "{:?}, ", self.get_type(i))?;
+        }
+        
+        Ok(())
     }
 }

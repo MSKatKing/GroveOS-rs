@@ -93,6 +93,9 @@ pub extern "C" fn _start() -> ! {
 
     let mut test = Vec::<u8>::with_capacity(3);
     test.push(0);
+    test.push(1);
+    test.push(2);
+    test.push(3);
     
     println!("{:?}", test);
     

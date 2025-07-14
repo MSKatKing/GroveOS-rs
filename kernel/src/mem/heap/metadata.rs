@@ -1,12 +1,10 @@
-use core::cell::LazyCell;
-use core::ops::{Index, IndexMut};
-use core::ptr::NonNull;
-use core::sync::atomic::{AtomicBool, Ordering};
 use crate::mem::heap::descriptor::HeapPageDescriptor;
 use crate::mem::heap::long::HeapLongTable;
 use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page_allocator::allocate_next_page;
-use crate::{print, println};
+use core::ops::{Index, IndexMut};
+use core::ptr::NonNull;
+use crate::println;
 
 pub const METADATA_ENTRY_COUNT: usize = (PAGE_SIZE - 16) / const { size_of::<HeapMetadataEntry>() };
 
@@ -68,12 +66,12 @@ impl HeapMetadata {
         let page = allocate_next_page()?;
         let (ptr, _) = unsafe { page.leak() };
         
-        println!("{}", ptr.as_ptr() as u64);
+        println!("{:x}", ptr.as_ptr() as usize);
         
         const EMPTY_METADATA_ENTRY: HeapMetadataEntry = HeapMetadataEntry {
             page: None,
             max_free_offset: 0,
-            max_free_len: 0,
+            max_free_len: 512,
             desc: HeapMetadataEntryType::Unallocated,
         };
         
@@ -94,7 +92,7 @@ impl HeapMetadata {
             let len = len / 8 + 1;
             
             // Look through existing entries and check to see if any can allocate this len
-            for (i, entry) in self.entries.iter_mut().enumerate() {
+            for entry in self.entries.iter_mut() {
                 if entry.is_general_heap() && entry.can_store_alloc(len) {
                     return entry.allocate(len);
                 }
@@ -126,13 +124,54 @@ impl HeapMetadata {
     }
     
     pub fn deallocate(&mut self, ptr: NonNull<u8>) {
-        todo!()
+        for entry in self.entries.iter_mut() {
+            if entry.contains_ptr(ptr.as_ptr()) {
+                entry.deallocate(ptr);
+                return;
+            }
+        }
+        
+        
     }
+    
+    pub fn reallocate(&mut self, ptr: NonNull<u8>, len: usize) -> Option<&'static mut [u8]> {
+        if len <= PAGE_SIZE {
+            let len = len / 8 + 1;
+            
+            for entry in self.entries.iter_mut() {
+                if entry.contains_ptr(ptr.as_ptr()) {
+                    return if let Some(out) = entry.reallocate(ptr, len) {
+                        Some(out)
+                    } else {
+                        entry.deallocate(ptr);
+                        self.allocate(len)
+                    }
+                }
+            }
+            
+            if let Some(next) = &mut self.next {
+                unsafe { next.as_mut() }.reallocate(ptr, len)
+            } else {
+                None
+            }
+        } else {
+            // TODO: first, check if its allocated in small data
+            // TODO: if it is, deallocate it then allocate as large
+            // TODO: if it isn't, then reallocate as normal
+            todo!()
+        }
+    }
+}
+
+macro_rules! ptr_to_offset {
+    ($ptr:expr) => {
+        $ptr.as_ptr() as usize & 0xFFF
+    };
 }
 
 impl HeapMetadataEntry {
     pub fn can_store_alloc(&self, len: usize) -> bool {
-        self.max_free_len <= len as u16
+        self.max_free_len >= len as u16
     }
     
     pub fn is_unallocated(&self) -> bool {
@@ -174,6 +213,8 @@ impl HeapMetadataEntry {
     pub fn allocate(&mut self, len: usize) -> Option<&'static mut [u8]> {
         match self.desc { 
             HeapMetadataEntryType::General(ref mut inner) => {
+                if self.max_free_len < len as u16 { return None; }
+                
                 let offset = self.max_free_offset as usize;
                 inner.set_used(offset, len);
                 
@@ -187,6 +228,38 @@ impl HeapMetadataEntry {
                 todo!()
             }
             _ => None,
+        }
+    }
+    
+    pub fn deallocate(&mut self, ptr: NonNull<u8>) {
+        match self.desc { 
+            HeapMetadataEntryType::General(ref mut inner) => inner.set_free(ptr_to_offset!(ptr)),
+            _ => todo!()
+        }
+    }
+    
+    pub fn reallocate(&mut self, ptr: NonNull<u8>, len: usize) -> Option<&'static mut [u8]> {
+        match self.desc { 
+            HeapMetadataEntryType::General(ref mut inner) => {
+                let old_len = inner.get_allocation_size(ptr_to_offset!(ptr));
+                if len > old_len {
+                    if inner.try_expand_allocation(ptr_to_offset!(ptr), len) {
+                        Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len) })
+                    } else {
+                        inner.set_free(ptr_to_offset!(ptr));
+                        
+                        let out = self.allocate(len)?;
+                        unsafe { out.as_mut_ptr().copy_from(ptr.as_ptr(), old_len * 8) };
+                        Some(out)
+                    }
+                } else if len < old_len {
+                    inner.shrink_allocation(ptr_to_offset!(ptr), len);
+                    Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len) })
+                } else {
+                    Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len) })
+                }
+            },
+            _ => todo!()
         }
     }
 }

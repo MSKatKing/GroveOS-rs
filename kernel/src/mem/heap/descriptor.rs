@@ -64,6 +64,33 @@ impl HeapPageDescriptor {
         }
         self.set_type(offset, HeapPageDescriptorTag::Free);
     }
+    
+    pub fn get_allocation_size(&mut self, mut offset: usize) -> usize {
+        let mut len = 1;
+        while self.get_type(offset) != HeapPageDescriptorTag::End {
+            len += 1;
+            offset += 1;
+        }
+        len
+    }
+    
+    pub fn try_expand_allocation(&mut self, offset: usize, new_len: usize) -> bool {
+        let old_len = self.get_allocation_size(offset);
+        
+        for i in offset + old_len..offset + new_len {
+            if self.get_type(i) != HeapPageDescriptorTag::Unused {
+                return false;
+            }
+        }
+        
+        self.set_used(offset, new_len);
+        true
+    }
+    
+    pub fn shrink_allocation(&mut self, offset: usize, new_len: usize) {
+        self.set_used(offset + new_len - 1, 1);
+        self.set_free(offset + new_len);
+    }
 
     pub fn get_largest_free_segment(&self) -> (u16, u16) {
         let mut max_free_offset = 0;

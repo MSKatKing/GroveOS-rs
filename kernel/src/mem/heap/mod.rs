@@ -41,6 +41,12 @@ unsafe impl GlobalAlloc for GroveHeap {
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        todo!()
+        let allocation = unsafe { HeapMetadata::kernel() }.reallocate(NonNull::new(ptr).expect("Cannot reallocate null ptr!"), new_size);
+
+        if let Some(allocation) = allocation {
+            allocation.as_mut_ptr()
+        } else {
+            panic!("Failed to allocate heap layout {:?}", layout)
+        }
     }
 }

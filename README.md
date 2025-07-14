@@ -11,8 +11,8 @@ GroveOS is a Rust-based operating system built from scratch mostly as a hobby. T
 ### Roadmap
 
 - [x] UEFI bootloader launching ELF kernel
-- [ ] Basic CPU memory structures setup (GDT, IDT, PML4, etc...)
-- [ ] Heap memory management
+- [x] Basic CPU memory structures setup (GDT, IDT, PML4, etc...)
+- [x] Heap memory management
 - [ ] Simple file system operations
 - [ ] Launching user processes
 - [ ] Basic libc implementation

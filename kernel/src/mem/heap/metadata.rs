@@ -221,6 +221,17 @@ impl HeapMetadataEntry {
         Some(())
     }
     
+    pub fn update_max_free(&mut self) {
+        match self.desc { 
+            HeapMetadataEntryType::General(ref inner) => {
+                let (max_free_offset, max_free_len) = inner.get_largest_free_segment();
+                self.max_free_offset = max_free_offset;
+                self.max_free_len = max_free_len;
+            },
+            _ => unimplemented!()
+        }
+    }
+    
     pub fn allocate(&mut self, len: usize) -> Option<&'static mut [u8]> {
         match self.desc { 
             HeapMetadataEntryType::General(ref mut inner) => {
@@ -229,9 +240,7 @@ impl HeapMetadataEntry {
                 let offset = self.max_free_offset as usize;
                 inner.set_used(offset, len);
                 
-                let (max_free_offset, max_free_len) = inner.get_largest_free_segment();
-                self.max_free_offset = max_free_offset;
-                self.max_free_len = max_free_len;
+                self.update_max_free();
                 
                 Some(unsafe { core::slice::from_raw_parts_mut(self.page?.as_ptr().cast::<u64>().offset(offset as isize).cast(), len) })
             },
@@ -244,7 +253,10 @@ impl HeapMetadataEntry {
     
     pub fn deallocate(&mut self, ptr: NonNull<u8>) {
         match self.desc { 
-            HeapMetadataEntryType::General(ref mut inner) => inner.set_free(ptr_to_offset!(ptr)),
+            HeapMetadataEntryType::General(ref mut inner) => {
+                inner.set_free(ptr_to_offset!(ptr));
+                self.update_max_free();
+            },
             _ => todo!()
         }
     }
@@ -255,7 +267,8 @@ impl HeapMetadataEntry {
                 let old_len = inner.get_allocation_size(ptr_to_offset!(ptr));
                 if len > old_len {
                     if inner.try_expand_allocation(ptr_to_offset!(ptr), len) {
-                        Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len) })
+                        self.update_max_free();
+                        Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len * 8) })
                     } else {
                         inner.set_free(ptr_to_offset!(ptr));
                         
@@ -265,9 +278,10 @@ impl HeapMetadataEntry {
                     }
                 } else if len < old_len {
                     inner.shrink_allocation(ptr_to_offset!(ptr), len);
-                    Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len) })
+                    self.update_max_free();
+                    Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len * 8) })
                 } else {
-                    Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len) })
+                    Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len * 8) })
                 }
             },
             _ => todo!()

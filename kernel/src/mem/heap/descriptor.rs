@@ -119,7 +119,12 @@ impl HeapPageDescriptor {
             }
         }
 
-        (max_free_offset, max_free_len)
+        
+        if curr_len > max_free_len {
+            (curr_offset as u16, curr_len)
+        } else {
+            (max_free_offset, max_free_len)
+        }
     }
 }
 

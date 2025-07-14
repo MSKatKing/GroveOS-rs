@@ -75,7 +75,7 @@ pub extern "C" fn _start() -> ! {
             .set_writable(true);
     }
 
-    for i in (0..boot_info.framebuffer_size as u64).step_by(0x1000) {
+    for i in (0..boot_info.framebuffer_size as u64 * size_of::<u32>() as u64).step_by(0x1000) {
         new_pml4.get_mut(i + boot_info.framebuffer as u64)
             .map_to(i + boot_info.framebuffer as u64)
             .set_writable(true);

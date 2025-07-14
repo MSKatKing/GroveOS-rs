@@ -17,6 +17,7 @@ use crate::mem::paging::PageTable;
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 use core::arch::asm;
 use core::panic::PanicInfo;
+use crate::mem::heap::metadata::HeapMetadata;
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -85,13 +86,32 @@ pub extern "C" fn _start() -> ! {
     new_pml4.install();
 
     println!("Initialized PML4...");
+    
+    unsafe { HeapMetadata::init_heap(); }
 
     // Point where all heap functions can be used.
 
-    let mut test = Vec::<u8>::with_capacity(3);
+    let mut test = Vec::<u8>::with_capacity(8);
     test.push(0);
+    test.push(1);
+    test.push(2);
+    test.push(3);
+    test.push(4);
+    test.push(5);
+    test.push(6);
+    test.push(7);
+    test.push(8);
     
-    println!("{:?}", test);
+    let mut a: Vec<u8> = Vec::with_capacity(1);
+    a.push(24);
+    a.push(15);
+    println!("a: {:?}", a);
+    
+    test.resize(32, 0);
+    
+    println!("test: {:?}", test);
+
+    println!("{:?}", unsafe { HeapMetadata::kernel() }[0]);
     
     loop {
         unsafe {

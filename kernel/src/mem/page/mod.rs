@@ -1,5 +1,5 @@
 use crate::mem::page::allocator::PageAllocator;
-use crate::mem::page::page_table::{PageTableEntry, EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE};
+use crate::mem::page::page_table::{EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE};
 use core::ops::Deref;
 use core::ptr::NonNull;
 
@@ -24,7 +24,6 @@ impl Deref for PagePtr {
 pub struct Page<'a> {
     addr: VirtAddr,
     allocator: &'a PageAllocator,
-    entry: &'a mut PageTableEntry,
 }
 
 impl Page<'_> {
@@ -33,20 +32,20 @@ impl Page<'_> {
     }
     
     pub fn leak(self) -> PagePtr {
-        self.entry.set_flag(PAGE_LEAKED, true);
+        self.allocator.set_flag_for_page(&self, PAGE_LEAKED, true);
         PagePtr(unsafe { NonNull::new_unchecked(self.addr as *mut u8) })
     }
     
     pub fn set_writable(&mut self, writable: bool) {
-        self.entry.set_flag(WRITABLE, writable);
+        self.allocator.set_flag_for_page(&self, WRITABLE, writable);
     }
     
     pub fn set_executable(&mut self, executable: bool) {
-        self.entry.set_flag(EXECUTE_DISABLE, !executable);
+        self.allocator.set_flag_for_page(&self, EXECUTE_DISABLE, executable);
     }
     
     pub fn set_user_accessible(&mut self, user_accessible: bool) {
-        self.entry.set_flag(USER_ACCESSIBLE, user_accessible);
+        self.allocator.set_flag_for_page(&self, USER_ACCESSIBLE, user_accessible);
     }
 }
 

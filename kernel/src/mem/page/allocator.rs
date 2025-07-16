@@ -55,6 +55,14 @@ impl PageAllocator {
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {
         todo!()
     }
+
+    pub(super) unsafe fn alloc_no_map(&mut self) -> Option<Page> {
+        todo!()
+    }
+
+    pub(super) fn set_flag_for_page(&self, page: &Page, flags: u64, value: bool) {
+        todo!()
+    }
 }
 
 impl PhysicalMemoryBitmap {

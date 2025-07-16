@@ -62,10 +62,6 @@ impl PageTable {
         ((addr as usize) >> (21 + (level * 9))) & 0x1FF
     }
 
-    pub fn get_next_addr(&mut self) -> Option<VirtAddr> {
-        todo!()
-    }
-
     pub fn is_mapped(&self, addr: VirtAddr) -> bool {
         if let Some(entry) = self.get_lowest_entry(Self::PML4_LEVEL, addr) {
             entry.has_flag(PRESENT)

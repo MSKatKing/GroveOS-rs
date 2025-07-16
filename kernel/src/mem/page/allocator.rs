@@ -28,9 +28,14 @@ impl PageAllocator {
         #[allow(static_mut_refs)]
         unsafe { &mut KERNEL_PAGE_ALLOCATOR }
     }
-    
-    pub fn new() -> Self {
-        todo!()
+
+    pub unsafe fn new_uninit() -> Self {
+        let phys = PhysicalMemoryBitmap::get().get_next_available().expect("should exist");
+
+        Self {
+            pml4: unsafe { (phys as *mut PageTable).as_mut_unchecked() },
+            virt_ptr: 0,
+        }
     }
     
     pub fn alloc(&mut self) -> Option<Page> {
@@ -146,9 +151,13 @@ impl PhysicalMemoryBitmap {
 }
 
 pub fn init_paging(boot_info: &UEFIBootInfo) {
+    #[allow(static_mut_refs)]
     unsafe {
         MEMORY_BITMAP.bitmap = core::slice::from_raw_parts_mut(boot_info.memory_bitmap, boot_info.memory_bitmap_size);
         MEMORY_BITMAP.phys_ptr = 0;
+
+        KERNEL_PAGE_ALLOCATOR = PageAllocator::new_uninit();
+        KERNEL_PAGE_ALLOCATOR.pml4.setup();
     }
 
     // TODO: setup kernel page allocator

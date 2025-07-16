@@ -63,7 +63,8 @@ impl PageAllocator {
 
 impl PhysicalMemoryBitmap {
     pub fn get() -> &'static mut Self {
-        todo!()
+        #[allow(static_mut_refs)]
+        unsafe { &mut MEMORY_BITMAP }
     }
 
     pub fn get_next_available(&self) -> Option<PhysAddr> {

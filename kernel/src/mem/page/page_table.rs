@@ -19,8 +19,15 @@ pub struct PageTableEntry(pub(super) u64);
 pub struct PageTable(pub(super) [PageTableEntry; 512]);
 
 impl PageTableEntry {
+    /// Clears all flags and sets the address this entry is pointing to to addr
     pub fn map_to_addr(&mut self, addr: VirtAddr) {
         self.0 = 0 | (addr & ADDR_SPAN) & PRESENT;
+    }
+
+    /// Swaps the address this entry is pointing to while preserving flags
+    pub fn swap_addr(&mut self, addr: VirtAddr) {
+        self.0 &= !ADDR_SPAN;
+        self.0 |= addr & ADDR_SPAN;
     }
     
     pub fn clear(&mut self) {

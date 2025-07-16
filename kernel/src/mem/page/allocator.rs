@@ -28,10 +28,6 @@ impl PageAllocator {
         unsafe { &mut KERNEL_PAGE_ALLOCATOR }
     }
     
-    pub fn current() -> &'static mut PageAllocator {
-        todo!()
-    }
-    
     pub fn new() -> Self {
         todo!()
     }

@@ -95,8 +95,33 @@ impl PageTable {
         }
     }
 
-    pub fn get_lowest_entry_or_create(&mut self, allocator: &mut PageAllocator, level: u8, addr: VirtAddr) -> &mut PageTableEntry {
-        todo!()
+    pub fn get_lowest_entry_or_create(&mut self, allocator: &mut PageAllocator, level: u8, addr: VirtAddr) -> Option<PageTableEntry> {
+        debug_assert_eq!(self as *const Self as u64, Self::PAGE_TABLE_WORK_PAGE, "PageTable::get_lowest_entry only works if self is a reference to the work page");
+
+        let index = Self::addr_to_idx(addr, level);
+
+        if level == Self::PT_LEVEL {
+            return Some(self.0[index]);
+        }
+        
+        if let None = self.0[index].get_addr() {
+            let mut page = unsafe { allocator.alloc_no_map() }?;
+            self.0[index].map_to_addr(page.addr);
+            self.0[index].set_flag(WRITABLE, true);
+            
+            page.entry = &mut self.0[index];
+            page.leak();
+        }
+        
+        let next_table = self.0[index].get_addr().expect("should be created");
+        let work_page_entry = unsafe { Self::get_work_page_entry() };
+        
+        let current_addr = work_page_entry.get_addr()?;
+        work_page_entry.swap_addr(next_table);
+        let out = self.get_lowest_entry_or_create(allocator, level - 1, addr);
+        work_page_entry.swap_addr(current_addr);
+        
+        out
     }
 
     fn addr_to_idx(addr: VirtAddr, level: u8) -> usize {

@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use crate::mem::page::{Page, VirtAddr};
+use crate::mem::page::{Page, PhysAddr, VirtAddr};
 use crate::mem::page::page_table::{PageTable, PageTableEntry};
 use crate::UEFIBootInfo;
 
@@ -56,6 +56,24 @@ impl PageAllocator {
     }
     
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {
+        todo!()
+    }
+}
+
+impl PhysicalMemoryBitmap {
+    pub fn get() -> &'static mut Self {
+        todo!()
+    }
+
+    pub fn get_next_available(&self) -> Option<PhysAddr> {
+        todo!()
+    }
+
+    pub fn set_used(&mut self, addr: PhysAddr, used: bool) {
+        todo!()
+    }
+
+    pub fn is_used(&self, addr: PhysAddr) -> bool {
         todo!()
     }
 }

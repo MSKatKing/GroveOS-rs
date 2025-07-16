@@ -4,7 +4,7 @@ use core::ops::Deref;
 use core::ptr::NonNull;
 
 mod page_table;
-mod allocator;
+pub mod allocator;
 
 pub type VirtAddr = u64;
 pub type PhysAddr = u64;

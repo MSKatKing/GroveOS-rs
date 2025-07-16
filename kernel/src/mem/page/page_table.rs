@@ -12,10 +12,10 @@ const ADDR_SPAN: u64 = 0x000F_FFFF_FFFF_F000;
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Default)]
-pub struct PageTableEntry(u64);
+pub struct PageTableEntry(pub(super) u64);
 
 #[repr(transparent)]
-pub struct PageTable([PageTableEntry; 512]);
+pub struct PageTable(pub(super) [PageTableEntry; 512]);
 
 impl PageTableEntry {
     pub fn map_to_addr(&mut self, addr: VirtAddr) {

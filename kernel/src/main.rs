@@ -18,6 +18,7 @@ use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 use core::arch::asm;
 use core::panic::PanicInfo;
 use crate::mem::heap::metadata::HeapMetadata;
+use crate::mem::page;
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -53,6 +54,8 @@ pub extern "C" fn _start() -> ! {
     init_writer(FramebufferWriter::from(boot_info));
     
     framebuffer_writer().clear();
+    
+    page::allocator::init_memory_bitmap(boot_info);
     
     FrameAllocator::init(boot_info);
 

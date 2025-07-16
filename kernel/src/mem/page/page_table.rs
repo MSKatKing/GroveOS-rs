@@ -51,12 +51,15 @@ impl PageTable {
 
     const PAGE_TABLE_STATIC_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_E000;
     const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_F000;
-    
+
     pub fn setup(&mut self) {
         todo!()
     }
 
-    fn get_work_page_entry() -> &'static mut PageTableEntry {
+    /// This function is unsafe because it assumes that PageTable::setup has been called.
+    ///
+    /// This function, if called before setup, will likely cause a page fault.
+    unsafe fn get_work_page_entry() -> &'static mut PageTableEntry {
         unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTableEntry).offset(511).as_mut_unchecked() }
     }
 

@@ -46,7 +46,10 @@ impl PageTableEntry {
 }
 
 impl PageTable {
-    pub fn get_lowest_entry(&self, level: u8, addr: VirtAddr) -> Option<&mut PageTableEntry> {
+    const PML4_LEVEL: u8 = 3;
+    const PT_LEVEL: u8 = 0;
+
+    pub fn get_lowest_entry(&self, level: u8, addr: VirtAddr) -> Option<&PageTableEntry> {
         todo!()
     }
 
@@ -64,6 +67,10 @@ impl PageTable {
     }
 
     pub fn is_mapped(&self, addr: VirtAddr) -> bool {
-        todo!()
+        if let Some(entry) = self.get_lowest_entry(Self::PML4_LEVEL, addr) {
+            entry.has_flag(PRESENT)
+        } else {
+            false
+        }
     }
 }

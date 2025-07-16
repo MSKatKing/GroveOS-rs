@@ -24,7 +24,8 @@ pub struct PageAllocator {
 
 impl PageAllocator {
     pub fn kernel() -> &'static mut PageAllocator {
-        todo!()
+        #[allow(static_mut_refs)]
+        unsafe { &mut KERNEL_PAGE_ALLOCATOR }
     }
     
     pub fn current() -> &'static mut PageAllocator {

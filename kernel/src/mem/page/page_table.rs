@@ -1,4 +1,4 @@
-use crate::mem::page::{VirtAddr};
+use crate::mem::page::{PhysAddr, VirtAddr};
 use crate::mem::page::allocator::PageAllocator;
 
 pub(super) const PRESENT: u64 = 1 << 0;
@@ -20,12 +20,12 @@ pub struct PageTable(pub(super) [PageTableEntry; 512]);
 
 impl PageTableEntry {
     /// Clears all flags and sets the address this entry is pointing to to addr
-    pub fn map_to_addr(&mut self, addr: VirtAddr) {
+    pub fn map_to_addr(&mut self, addr: PhysAddr) {
         self.0 = 0 | (addr & ADDR_SPAN) & PRESENT;
     }
 
     /// Swaps the address this entry is pointing to while preserving flags
-    pub fn swap_addr(&mut self, addr: VirtAddr) {
+    pub fn swap_addr(&mut self, addr: PhysAddr) {
         self.0 &= !ADDR_SPAN;
         self.0 |= addr & ADDR_SPAN;
     }
@@ -38,7 +38,7 @@ impl PageTableEntry {
         (self.0 & flag) != 0
     }
     
-    pub fn get_addr(&self) -> Option<VirtAddr> {
+    pub fn get_addr(&self) -> Option<PhysAddr> {
         if self.has_flag(PRESENT) {
             Some(self.0 & ADDR_SPAN)
         } else {

@@ -67,16 +67,47 @@ impl PhysicalMemoryBitmap {
         unsafe { &mut MEMORY_BITMAP }
     }
 
-    pub fn get_next_available(&self) -> Option<PhysAddr> {
-        todo!()
+    fn idx_to_addr(idx: usize) -> PhysAddr {
+        (idx as u64) << 12
+    }
+
+    fn addr_to_idx(idx: PhysAddr) -> usize {
+        (idx as usize) >> 12
+    }
+
+    pub fn get_next_available(&mut self) -> Option<PhysAddr> {
+        if self.is_used(Self::idx_to_addr(self.phys_ptr)) {
+            for i in self.phys_ptr + 1..self.bitmap.len() * 8 {
+                if !self.is_used(Self::idx_to_addr(i)) {
+                    self.phys_ptr = i + 1;
+                    return Some(Self::idx_to_addr(i));
+                }
+            }
+
+            None
+        } else {
+            self.phys_ptr += 1;
+            Some(Self::idx_to_addr(self.phys_ptr))
+        }
     }
 
     pub fn set_used(&mut self, addr: PhysAddr, used: bool) {
-        todo!()
+        let idx = addr as usize / 8;
+        let offset = addr % 8;
+
+        self.bitmap[idx] &= !(1 << offset);
+        if used {
+            self.bitmap[idx] |= 1 << offset;
+        } else if self.phys_ptr > ((addr as usize) >> 12) {
+            self.phys_ptr = (addr as usize) >> 12;
+        }
     }
 
     pub fn is_used(&self, addr: PhysAddr) -> bool {
-        todo!()
+        let idx = addr as usize / 8;
+        let offset = addr % 8;
+
+        self.bitmap[idx] & (1 << offset) != 0
     }
 }
 

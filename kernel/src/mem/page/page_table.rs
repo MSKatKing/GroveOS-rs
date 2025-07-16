@@ -53,11 +53,11 @@ impl PageTableEntry {
 }
 
 impl PageTable {
-    const PML4_LEVEL: u8 = 3;
+    pub(super) const PML4_LEVEL: u8 = 3;
     const PT_LEVEL: u8 = 0;
 
     const PAGE_TABLE_STATIC_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_E000;
-    const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_F000;
+    pub(super) const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_F000;
 
     pub fn setup(&mut self) {
         todo!()
@@ -154,6 +154,13 @@ impl PageTable {
     fn addr_to_idx(addr: VirtAddr, level: u8) -> usize {
         assert!(level <= 3); // 5-level paging is not supported yet
         ((addr as usize) >> (21 + (level * 9))) & 0x1FF
+    }
+    
+    pub unsafe fn swap_work_page(addr: PhysAddr) -> PhysAddr {
+        let entry = unsafe { Self::get_work_page_entry() };
+        let current = entry.get_addr().expect("should be created");
+        entry.swap_addr(addr);
+        current
     }
 
     pub fn is_mapped(&self, addr: VirtAddr) -> bool {

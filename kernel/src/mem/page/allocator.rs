@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page::{Page, PhysAddr, VirtAddr};
 use crate::mem::page::page_table::{PageTable, PageTableEntry};
 use crate::UEFIBootInfo;
@@ -19,7 +20,7 @@ struct PhysicalMemoryBitmap {
 
 pub struct PageAllocator {
     pml4: &'static mut PageTable,
-    virt_ptr: usize,
+    virt_ptr: u64,
 }
 
 impl PageAllocator {
@@ -33,7 +34,28 @@ impl PageAllocator {
     }
     
     pub fn alloc(&mut self) -> Option<Page> {
-        todo!()
+        // SAFETY: pml4 is edited but needs a reference to self. It does access pml4, but not simultaneously and not the same part.
+        let allocator = unsafe { (self as *mut Self).as_mut_unchecked() };
+
+        let old_work_addr = unsafe { PageTable::swap_work_page(PageTable::PAGE_TABLE_WORK_PAGE) };
+        if let Some(mut entry) = self.pml4.get_lowest_entry_or_create(allocator, PageTable::PML4_LEVEL, self.get_next_addr()) {
+            if let None = entry.get_addr() {
+                let addr = PhysicalMemoryBitmap::get().get_next_available()?;
+                entry.map_to_addr(addr);
+                self.pml4.set_lowest_entry(allocator, PageTable::PML4_LEVEL, self.get_next_addr(), entry);
+                unsafe { PageTable::swap_work_page(old_work_addr) };
+                self.virt_ptr += 1;
+
+                Some(Page { addr: self.get_next_addr(), allocator: self })
+            } else {
+                // virt_ptr was already taken, move on
+                unsafe { PageTable::swap_work_page(old_work_addr) };
+                None
+            }
+        } else {
+            // Something went wrong creating the entry
+            None
+        }
     }
     
     pub fn alloc_many(&mut self, count: usize) -> Option<Vec<Page>> {
@@ -54,6 +76,14 @@ impl PageAllocator {
     
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {
         todo!()
+    }
+
+    fn get_next_addr(&self) -> VirtAddr {
+        self.virt_ptr * PAGE_SIZE as u64
+    }
+
+    fn set_next_addr(&mut self, addr: VirtAddr) {
+        self.virt_ptr = addr / PAGE_SIZE as u64;
     }
 
     pub(super) unsafe fn alloc_no_map(&mut self) -> Option<Page> {

@@ -60,7 +60,7 @@ impl PageAllocator {
     }
 }
 
-pub fn init_memory_bitmap(boot_info: &UEFIBootInfo) {
+pub fn init_paging(boot_info: &UEFIBootInfo) {
     unsafe {
         MEMORY_BITMAP.bitmap = core::slice::from_raw_parts_mut(boot_info.memory_bitmap, boot_info.memory_bitmap_size);
         MEMORY_BITMAP.phys_ptr = 0;

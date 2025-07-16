@@ -54,8 +54,8 @@ pub extern "C" fn _start() -> ! {
     init_writer(FramebufferWriter::from(boot_info));
     
     framebuffer_writer().clear();
-    
-    page::allocator::init_memory_bitmap(boot_info);
+
+    page::allocator::init_paging(boot_info);
     
     FrameAllocator::init(boot_info);
 

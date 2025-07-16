@@ -1,4 +1,5 @@
 use crate::mem::page::{VirtAddr};
+use crate::mem::page::allocator::PageAllocator;
 
 pub(super) const PRESENT: u64 = 1 << 0;
 pub(super) const WRITABLE: u64 = 1 << 1;
@@ -45,5 +46,24 @@ impl PageTableEntry {
 }
 
 impl PageTable {
-    
+    pub fn get_lowest_entry(&self, level: u8, addr: VirtAddr) -> Option<&mut PageTableEntry> {
+        todo!()
+    }
+
+    pub fn get_lowest_entry_or_create(&mut self, allocator: &mut PageAllocator, level: u8, addr: VirtAddr) -> &mut PageTableEntry {
+        todo!()
+    }
+
+    fn addr_to_idx(addr: VirtAddr, level: u8) -> usize {
+        assert!(level <= 3); // 5-level paging is not supported yet
+        ((addr as usize) >> (21 + (level * 9))) & 0x1FF
+    }
+
+    pub fn get_next_addr(&mut self) -> Option<VirtAddr> {
+        todo!()
+    }
+
+    pub fn is_mapped(&self, addr: VirtAddr) -> bool {
+        todo!()
+    }
 }

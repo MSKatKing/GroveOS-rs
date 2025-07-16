@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
+
 #![feature(alloc_error_handler)]
+#![feature(ptr_as_ref_unchecked)]
 
 extern crate alloc;
 

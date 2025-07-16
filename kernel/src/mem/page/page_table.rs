@@ -49,6 +49,17 @@ impl PageTable {
     const PML4_LEVEL: u8 = 3;
     const PT_LEVEL: u8 = 0;
 
+    const PAGE_TABLE_STATIC_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_E000;
+    const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_F000;
+    
+    pub fn setup(&mut self) {
+        todo!()
+    }
+
+    fn get_work_page_entry() -> &'static mut PageTableEntry {
+        unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTableEntry).offset(511).as_mut_unchecked() }
+    }
+
     pub fn get_lowest_entry(&self, level: u8, addr: VirtAddr) -> Option<&PageTableEntry> {
         todo!()
     }

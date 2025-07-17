@@ -6,6 +6,17 @@ use core::ptr::NonNull;
 mod page_table;
 pub mod allocator;
 
+/// TODO: Rework of this system is required
+/// TODO: PageAllocator -> safe abstraction over PageTable for allocating VIRTUAL pages
+/// TODO: PhysicalPageAllocator -> allocator for reserving physical pages, no guarantee that they're mapped
+/// TODO: PageTable -> low-level representation of paging tables
+/// TODO:
+/// TODO: page tables should use PhysicalPageAllocator and a const TEMP_PAGE_TABLE for creating inner tables (pdpt, pd, pt)
+/// TODO: page table functions should ALL be unsafe because they must unsafely dereference pointers
+/// TODO: PageAllocator should make sure the unsafe page table functions are safe
+/// TODO: PageAllocator should have a kernel() and current() method for getting the necessary PageAllocator
+/// TODO: PageAllocator should be designed to be created over and over (because its going to be used per-process
+
 pub type VirtAddr = u64;
 pub type PhysAddr = u64;
 

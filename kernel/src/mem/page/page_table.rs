@@ -59,8 +59,25 @@ impl PageTable {
     const PAGE_TABLE_STATIC_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_E000;
     pub(super) const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_F000;
 
-    pub fn setup(&mut self) {
-        todo!()
+    pub fn setup(&mut self, allocator: &mut PageAllocator) {
+        let pml4_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PML4_LEVEL);
+        let pdpt_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PML4_LEVEL - 1);
+        let pd_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PML4_LEVEL - 1);
+        let pt_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PT_LEVEL);
+
+        let pdpt_addr = unsafe { allocator.alloc_no_map().expect("failed to allocate page") }.addr;
+        let pd_addr = unsafe { allocator.alloc_no_map().expect("failed to allocate page") }.addr;
+        let pt_addr = unsafe { allocator.alloc_no_map().expect("failed to allocate page") }.addr;
+
+        let pdpt = unsafe { (pdpt_addr as *mut PageTable).as_mut_unchecked() };
+        let pd = unsafe { (pd_addr as *mut PageTable).as_mut_unchecked() };
+        let pt = unsafe { (pt_addr as *mut PageTable).as_mut_unchecked() };
+
+        self.0[pml4_idx].map_to_addr(pdpt_addr);
+        pdpt.0[pdpt_idx].map_to_addr(pdpt_addr);
+        pd.0[pd_idx].map_to_addr(pd_addr);
+        pt.0[pt_idx - 1].map_to_addr(pt_addr);
+        pt.0[pt_idx].map_to_addr(self as *const Self as u64);
     }
 
     /// This function is unsafe because it assumes that PageTable::setup has been called.

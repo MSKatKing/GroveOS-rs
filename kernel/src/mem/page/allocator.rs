@@ -162,7 +162,7 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
         MEMORY_BITMAP.phys_ptr = 0;
 
         KERNEL_PAGE_ALLOCATOR = PageAllocator::new_uninit();
-        KERNEL_PAGE_ALLOCATOR.pml4.setup();
+        KERNEL_PAGE_ALLOCATOR.pml4.setup(&mut KERNEL_PAGE_ALLOCATOR);
     }
 
     // TODO: setup kernel page allocator

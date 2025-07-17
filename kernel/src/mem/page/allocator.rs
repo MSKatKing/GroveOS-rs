@@ -92,7 +92,12 @@ impl PageAllocator {
     }
 
     pub(super) unsafe fn alloc_no_map(&mut self) -> Option<Page> {
-        todo!()
+        let phys = PhysicalMemoryBitmap::get().get_next_available()?;
+        
+        Some(Page {
+            addr: phys,
+            allocator: self,
+        })
     }
 
     pub(super) fn set_flag_for_page(&self, page: &Page, flags: u64, value: bool) {

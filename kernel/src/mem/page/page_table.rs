@@ -1,5 +1,6 @@
 use core::arch::asm;
 use crate::mem::page::{PageAllocationError, PhysAddr, VirtAddr};
+use crate::mem::page::allocator::PageAllocator;
 use crate::mem::page::physical::PhysicalPageAllocator;
 
 pub(super) const PRESENT: u64 = 1 << 0;
@@ -61,6 +62,13 @@ impl PageTable {
     pub fn new() -> Result<*mut PageTable, PageAllocationError> {
         let page = PhysicalPageAllocator::get().alloc()?;
         Ok(page as *mut PageTable)
+    }
+
+    pub fn install(&self) {
+        unsafe {
+            let phys = PageAllocator::current().pml4.translate(self as *const Self as u64).expect("should be mapped");
+            asm!("mov cr3, [{}]", in(reg) phys);
+        }
     }
 
     pub fn setup_pml4(&mut self) -> Result<(), PageAllocationError> {

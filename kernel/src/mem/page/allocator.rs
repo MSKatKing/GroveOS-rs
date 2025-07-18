@@ -3,6 +3,7 @@ use crate::mem::page::page_table::{PageTable, PageTableEntry};
 use crate::mem::page::{Page, PageAllocationError, VirtAddr};
 use crate::UEFIBootInfo;
 use alloc::vec::Vec;
+use core::ptr::null_mut;
 use crate::mem::page::physical::PhysicalPageAllocator;
 
 static mut KERNEL_PAGE_ALLOCATOR: PageAllocator = PageAllocator {
@@ -10,8 +11,10 @@ static mut KERNEL_PAGE_ALLOCATOR: PageAllocator = PageAllocator {
     virt_ptr: 0,
 };
 
+static mut CURRENT_PAGE_ALLOCATOR: *mut PageAllocator = null_mut();
+
 pub struct PageAllocator {
-    pml4: &'static mut PageTable,
+    pub(super) pml4: &'static mut PageTable,
     virt_ptr: u64,
 }
 
@@ -21,6 +24,17 @@ impl PageAllocator {
     pub fn kernel() -> &'static mut PageAllocator {
         #[allow(static_mut_refs)]
         unsafe { &mut KERNEL_PAGE_ALLOCATOR }
+    }
+    
+    pub fn current() -> &'static mut PageAllocator {
+        unsafe { CURRENT_PAGE_ALLOCATOR.as_mut_unchecked() }
+    }
+    
+    pub fn install(&mut self) {
+        self.pml4.install();
+        unsafe {
+            CURRENT_PAGE_ALLOCATOR = self as *mut Self;
+        }
     }
 
     pub unsafe fn new_uninit() -> Self {

@@ -20,6 +20,11 @@ pub mod allocator;
 pub type VirtAddr = u64;
 pub type PhysAddr = u64;
 
+pub enum PageAllocationError {
+    OutOfMemory,
+    OutOfVirtualMemory,
+}
+
 #[repr(transparent)]
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct PagePtr(NonNull<u8>);

@@ -1,22 +1,14 @@
-use alloc::vec::Vec;
 use crate::mem::heap::PAGE_SIZE;
-use crate::mem::page::{Page, PageAllocationError, PhysAddr, VirtAddr};
 use crate::mem::page::page_table::{PageTable, PageTableEntry};
+use crate::mem::page::{Page, PageAllocationError, VirtAddr};
 use crate::UEFIBootInfo;
+use alloc::vec::Vec;
+use crate::mem::page::physical::PhysicalPageAllocator;
 
-static mut MEMORY_BITMAP: PhysicalMemoryBitmap = PhysicalMemoryBitmap {
-    phys_ptr: 0,
-    bitmap: &mut [],
-};
 static mut KERNEL_PAGE_ALLOCATOR: PageAllocator = PageAllocator {
     pml4: &mut PageTable([PageTableEntry(0); 512]),
     virt_ptr: 0,
 };
-
-struct PhysicalMemoryBitmap {
-    bitmap: &'static mut [u8],
-    phys_ptr: usize,
-}
 
 pub struct PageAllocator {
     pml4: &'static mut PageTable,
@@ -32,7 +24,7 @@ impl PageAllocator {
     }
 
     pub unsafe fn new_uninit() -> Self {
-        let phys = PhysicalMemoryBitmap::get().get_next_available().expect("should exist");
+        let phys = PhysicalPageAllocator::get().alloc().expect("should exist");
 
         Self {
             pml4: unsafe { (phys as *mut PageTable).as_mut_unchecked() },
@@ -43,7 +35,7 @@ impl PageAllocator {
     pub fn alloc(&mut self) -> Result<Page, PageAllocationError> {
         if !self.pml4.is_mapped(self.get_next_addr()) {
             let virt = self.get_next_addr();
-            let phys = PhysicalMemoryBitmap::get().get_next_available().ok_or(PageAllocationError::OutOfMemory)?;
+            let phys = PhysicalPageAllocator::get().alloc()?;
             self.virt_ptr += 1;
 
             self.pml4.map_addr(virt, phys, 0)?;
@@ -54,7 +46,7 @@ impl PageAllocator {
 
                 if !self.pml4.is_mapped(self.get_next_addr()) {
                     let virt = self.get_next_addr();
-                    let phys = PhysicalMemoryBitmap::get().get_next_available().ok_or(PageAllocationError::OutOfMemory)?;
+                    let phys = PhysicalPageAllocator::get().alloc()?;
                     self.virt_ptr += 1;
 
                     self.pml4.map_addr(virt, phys, 0)?;
@@ -94,76 +86,14 @@ impl PageAllocator {
         self.virt_ptr = addr / PAGE_SIZE as u64;
     }
 
-    pub(super) unsafe fn alloc_no_map(&mut self) -> Option<Page> {
-        let phys = PhysicalMemoryBitmap::get().get_next_available()?;
-        
-        Some(Page {
-            addr: phys,
-            allocator: self,
-        })
-    }
-
     pub(super) fn set_flag_for_page(&self, page: &Page, flags: u64, value: bool) {
         todo!()
-    }
-}
-
-impl PhysicalMemoryBitmap {
-    pub fn get() -> &'static mut Self {
-        #[allow(static_mut_refs)]
-        unsafe { &mut MEMORY_BITMAP }
-    }
-
-    fn idx_to_addr(idx: usize) -> PhysAddr {
-        (idx as u64) << 12
-    }
-
-    fn addr_to_idx(idx: PhysAddr) -> usize {
-        (idx as usize) >> 12
-    }
-
-    pub fn get_next_available(&mut self) -> Option<PhysAddr> {
-        if self.is_used(Self::idx_to_addr(self.phys_ptr)) {
-            for i in self.phys_ptr + 1..self.bitmap.len() * 8 {
-                if !self.is_used(Self::idx_to_addr(i)) {
-                    self.phys_ptr = i + 1;
-                    return Some(Self::idx_to_addr(i));
-                }
-            }
-
-            None
-        } else {
-            self.phys_ptr += 1;
-            Some(Self::idx_to_addr(self.phys_ptr))
-        }
-    }
-
-    pub fn set_used(&mut self, addr: PhysAddr, used: bool) {
-        let idx = addr as usize / 8;
-        let offset = addr % 8;
-
-        self.bitmap[idx] &= !(1 << offset);
-        if used {
-            self.bitmap[idx] |= 1 << offset;
-        } else if self.phys_ptr > ((addr as usize) >> 12) {
-            self.phys_ptr = (addr as usize) >> 12;
-        }
-    }
-
-    pub fn is_used(&self, addr: PhysAddr) -> bool {
-        let idx = addr as usize / 8;
-        let offset = addr % 8;
-
-        self.bitmap[idx] & (1 << offset) != 0
     }
 }
 
 pub fn init_paging(boot_info: &UEFIBootInfo) {
     #[allow(static_mut_refs)]
     unsafe {
-        MEMORY_BITMAP.bitmap = core::slice::from_raw_parts_mut(boot_info.memory_bitmap, boot_info.memory_bitmap_size);
-        MEMORY_BITMAP.phys_ptr = 0;
-
         KERNEL_PAGE_ALLOCATOR = PageAllocator::new_uninit();
         KERNEL_PAGE_ALLOCATOR.pml4.setup_pml4().expect("TODO: panic message");
     }

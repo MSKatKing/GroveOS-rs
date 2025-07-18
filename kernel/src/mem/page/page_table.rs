@@ -139,6 +139,7 @@ impl PageTable {
     fn map_temp(addr: PhysAddr) -> &'static mut PageTable {
         let work_entry = unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTable).as_mut_unchecked() };
         work_entry.0[511].swap_addr(addr);
+        work_entry.0[511].set_flag(WRITABLE, true);
 
         Self::invplg(Self::PAGE_TABLE_WORK_PAGE);
 

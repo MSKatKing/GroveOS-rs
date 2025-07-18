@@ -1,6 +1,6 @@
-use core::fmt::Write;
-use crate::screen::font::{PSFFont, KERNEL_FONT};
 use crate::UEFIBootInfo;
+use crate::screen::font::{KERNEL_FONT, PSFFont};
+use core::fmt::Write;
 
 mod font;
 
@@ -30,9 +30,8 @@ impl FramebufferWriter {
 impl From<&UEFIBootInfo> for FramebufferWriter {
     fn from(value: &UEFIBootInfo) -> Self {
         // SAFETY: this is okay because we know the base framebuffer pointer and the framebuffer size
-        let framebuffer = unsafe {
-            core::slice::from_raw_parts_mut(value.framebuffer, value.framebuffer_size)
-        };
+        let framebuffer =
+            unsafe { core::slice::from_raw_parts_mut(value.framebuffer, value.framebuffer_size) };
 
         Self {
             framebuffer,
@@ -93,7 +92,7 @@ impl Write for FramebufferWriter {
             self.cursor_x = 0;
             self.cursor_y += glyph_height;
         }
-        
+
         if self.cursor_y >= self.height {
             self.clear();
             self.cursor_y = 0;
@@ -110,7 +109,7 @@ impl Write for FramebufferWriter {
                     self.cursor_x = 0;
                     self.cursor_y += self.curr_font.height as usize;
                 }
-                _ => self.write_char(c)?
+                _ => self.write_char(c)?,
             }
         }
 
@@ -122,9 +121,7 @@ static mut FRAMEBUFFER_WRITER: Option<FramebufferWriter> = None;
 
 pub fn init_writer(writer: FramebufferWriter) {
     // SAFETY: for now, our os is single-threaded, so using a global writer is fine
-    unsafe {
-        FRAMEBUFFER_WRITER = Some(writer)
-    }
+    unsafe { FRAMEBUFFER_WRITER = Some(writer) }
 }
 
 pub fn framebuffer_writer() -> &'static mut FramebufferWriter {

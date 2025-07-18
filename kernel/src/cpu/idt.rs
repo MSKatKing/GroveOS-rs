@@ -27,10 +27,10 @@ impl IDTEntry {
             zero: 0,
         }
     }
-    
+
     pub fn new(isr: ISR, flags: Option<u8>) -> Self {
         let isr = isr as *const () as u64;
-        
+
         Self {
             offset_low: (isr & 0xFFFF) as _,
             offset_mid: ((isr >> 16) & 0xFFFF) as _,
@@ -47,8 +47,12 @@ const IDT_ENTRIES: usize = 256;
 static mut IDT: [IDTEntry; IDT_ENTRIES] = [IDTEntry::empty(); IDT_ENTRIES];
 
 pub fn set_idt_entry(entry: IDTEntry, index: usize) {
-    if index >= IDT_ENTRIES { return; }
-    unsafe { IDT[index] = entry; }
+    if index >= IDT_ENTRIES {
+        return;
+    }
+    unsafe {
+        IDT[index] = entry;
+    }
 }
 
 pub fn lidt() {
@@ -57,15 +61,15 @@ pub fn lidt() {
         limit: u16,
         base: u64,
     }
-    
+
     static mut IDTP: IDTPointer = IDTPointer {
         limit: IDT_ENTRIES as u16 * size_of::<IDTEntry>() as u16 - 1,
-        base: 0
+        base: 0,
     };
-    
+
     unsafe {
         IDTP.base = &raw const IDT as u64;
-        
+
         asm!("lidt [{idtp}]", idtp = in(reg) &raw const IDTP, options(nostack, preserves_flags));
         asm!("sti")
     }

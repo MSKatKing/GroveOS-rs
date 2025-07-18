@@ -59,132 +59,15 @@ impl PageTable {
     const PAGE_TABLE_STATIC_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_E000;
     pub(super) const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FFFF_7FFF_F000;
 
-    pub fn setup(&mut self, allocator: &mut PageAllocator) {
-        let pml4_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PML4_LEVEL);
-        let pdpt_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PML4_LEVEL - 1);
-        let pd_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PML4_LEVEL - 1);
-        let pt_idx = Self::addr_to_idx(Self::PAGE_TABLE_WORK_PAGE, Self::PT_LEVEL);
-
-        let pdpt_addr = unsafe { allocator.alloc_no_map().expect("failed to allocate page") }.addr;
-        let pd_addr = unsafe { allocator.alloc_no_map().expect("failed to allocate page") }.addr;
-        let pt_addr = unsafe { allocator.alloc_no_map().expect("failed to allocate page") }.addr;
-
-        let pdpt = unsafe { (pdpt_addr as *mut PageTable).as_mut_unchecked() };
-        let pd = unsafe { (pd_addr as *mut PageTable).as_mut_unchecked() };
-        let pt = unsafe { (pt_addr as *mut PageTable).as_mut_unchecked() };
-
-        self.0[pml4_idx].map_to_addr(pdpt_addr);
-        pdpt.0[pdpt_idx].map_to_addr(pdpt_addr);
-        pd.0[pd_idx].map_to_addr(pd_addr);
-        pt.0[pt_idx - 1].map_to_addr(pt_addr);
-        pt.0[pt_idx].map_to_addr(self as *const Self as u64);
+    pub fn map_addr(&mut self, vaddr: VirtAddr, paddr: PhysAddr, flags: u64) {
+        todo!()
     }
 
-    /// This function is unsafe because it assumes that PageTable::setup has been called.
-    ///
-    /// This function, if called before setup, will likely cause a page fault.
-    unsafe fn get_work_page_entry() -> &'static mut PageTableEntry {
-        unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTableEntry).offset(511).as_mut_unchecked() }
+    pub fn unmap_addr(&mut self, vaddr: VirtAddr) {
+        todo!()
     }
 
-    pub fn get_lowest_entry(&self, level: u8, addr: VirtAddr) -> Option<PageTableEntry> {
-        debug_assert_eq!(self as *const Self as u64, Self::PAGE_TABLE_WORK_PAGE, "PageTable::get_lowest_entry only works if self is a reference to the work page");
-
-        let index = Self::addr_to_idx(addr, level);
-
-        if level == Self::PT_LEVEL {
-            return Some(self.0[index]);
-        }
-
-        if let Some(next_table) = self.0[index].get_addr() {
-            // SAFETY: should be safe because this function will be only available to the PageAllocator which ensures setup() is called
-            let work_page_entry = unsafe { Self::get_work_page_entry() };
-
-            let current_addr = work_page_entry.get_addr()?;
-            work_page_entry.swap_addr(next_table);
-            // self should point to Self::PAGE_TABLE_WORK_PAGE if setup was called, so self should be the next page table
-            let out = self.get_lowest_entry(level - 1, addr);
-            work_page_entry.swap_addr(current_addr);
-
-            out
-        } else {
-            None
-        }
-    }
-
-    pub fn get_lowest_entry_or_create(&mut self, allocator: &mut PageAllocator, level: u8, addr: VirtAddr) -> Option<PageTableEntry> {
-        debug_assert_eq!(self as *const Self as u64, Self::PAGE_TABLE_WORK_PAGE, "PageTable::get_lowest_entry_or_create only works if self is a reference to the work page");
-
-        let index = Self::addr_to_idx(addr, level);
-
-        if level == Self::PT_LEVEL {
-            return Some(self.0[index]);
-        }
-
-        if let None = self.0[index].get_addr() {
-            self.create_page(allocator, index);
-        }
-
-        let next_table = self.0[index].get_addr().expect("should be created");
-        let work_page_entry = unsafe { Self::get_work_page_entry() };
-
-        let current_addr = work_page_entry.get_addr()?;
-        work_page_entry.swap_addr(next_table);
-        let out = self.get_lowest_entry_or_create(allocator, level - 1, addr);
-        work_page_entry.swap_addr(current_addr);
-
-        out
-    }
-
-    pub fn set_lowest_entry(&mut self, allocator: &mut PageAllocator, level: u8, addr: VirtAddr, entry: PageTableEntry) {
-        debug_assert_eq!(self as *const Self as u64, Self::PAGE_TABLE_WORK_PAGE, "PageTable::set_lowest_entry only works if self is a reference to the work page");
-
-        let index = Self::addr_to_idx(addr, level);
-
-        if level == Self::PT_LEVEL {
-            self.0[index] = entry;
-        }
-
-        if let None = self.0[index].get_addr() {
-            self.create_page(allocator, index);
-        }
-
-        let next_table = self.0[index].get_addr().expect("should be created");
-        let work_page_entry = unsafe { Self::get_work_page_entry() };
-
-        let current_addr = work_page_entry.get_addr().expect("should be created");
-        work_page_entry.swap_addr(next_table);
-        let out = self.set_lowest_entry(allocator, level - 1, addr, entry);
-        work_page_entry.swap_addr(current_addr);
-
-        out
-    }
-
-    fn create_page(&mut self, allocator: &mut PageAllocator, index: usize) {
-        let page = unsafe { allocator.alloc_no_map() }.expect("page should be allocated");
-        self.0[index].map_to_addr(page.addr);
-        self.0[index].set_flag(WRITABLE, true);
-
-        page.leak();
-    }
-
-    fn addr_to_idx(addr: VirtAddr, level: u8) -> usize {
-        assert!(level <= 3); // 5-level paging is not supported yet
-        ((addr as usize) >> (21 + (level * 9))) & 0x1FF
-    }
-    
-    pub unsafe fn swap_work_page(addr: PhysAddr) -> PhysAddr {
-        let entry = unsafe { Self::get_work_page_entry() };
-        let current = entry.get_addr().expect("should be created");
-        entry.swap_addr(addr);
-        current
-    }
-
-    pub fn is_mapped(&self, addr: VirtAddr) -> bool {
-        if let Some(entry) = self.get_lowest_entry(Self::PML4_LEVEL, addr) {
-            entry.has_flag(PRESENT)
-        } else {
-            false
-        }
+    pub fn is_mapped(vaddr: VirtAddr) -> bool {
+        todo!()
     }
 }

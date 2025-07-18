@@ -40,7 +40,7 @@ impl PhysicalPageAllocator {
         } else {
             for idx in self.phys_ptr..(self.bitmap.len() * 8) {
                 if self.is_free(Self::idx_to_addr(idx)) {
-                    let addr = Self::idx_to_addr(self.phys_ptr);
+                    let addr = Self::idx_to_addr(idx);
                     self.phys_ptr = idx + 1;
                     return Ok(addr);
                 }
@@ -70,7 +70,7 @@ impl PhysicalPageAllocator {
         let offset = idx % 8;
         let idx = idx / 8;
 
-        self.bitmap[idx] & (1 << offset) != 0
+        self.bitmap[idx] & (1 << offset) == 0
     }
 
     fn set_used(&mut self, addr: PhysAddr, used: bool) {

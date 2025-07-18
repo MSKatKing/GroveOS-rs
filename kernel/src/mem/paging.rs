@@ -1,5 +1,4 @@
 use crate::mem::page_allocator::allocate_next_page;
-use crate::{print, println};
 use core::arch::asm;
 use core::ops::{Index, IndexMut};
 

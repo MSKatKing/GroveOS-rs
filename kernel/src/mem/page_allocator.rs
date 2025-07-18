@@ -1,5 +1,4 @@
 use crate::UEFIBootInfo;
-use crate::mem::paging::PageTable;
 use core::num::{NonZeroU64, NonZeroUsize};
 use core::ops::{Deref, DerefMut, Index, IndexMut};
 use core::ptr::NonNull;

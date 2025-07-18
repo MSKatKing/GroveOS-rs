@@ -49,13 +49,24 @@ impl From<&UEFIBootInfo> for FramebufferWriter {
 }
 
 impl Write for FramebufferWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for c in s.chars() {
+            match c {
+                '\n' => {
+                    self.cursor_x = 0;
+                    self.cursor_y += self.curr_font.height as usize;
+                }
+                _ => self.write_char(c)?,
+            }
+        }
+
+        Ok(())
+    }
+
     fn write_char(&mut self, c: char) -> core::fmt::Result {
         let glyph = self.curr_font.get_char(c);
         let glyph_width = self.curr_font.width as usize;
         let glyph_height = self.curr_font.height as usize;
-
-        let x_offset = self.cursor_x;
-        let y_offset = self.cursor_y;
 
         let bytes_per_row = (self.curr_font.width as usize + 7) / 8;
 
@@ -97,20 +108,6 @@ impl Write for FramebufferWriter {
             self.clear();
             self.cursor_y = 0;
             self.cursor_x = 0;
-        }
-
-        Ok(())
-    }
-
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for c in s.chars() {
-            match c {
-                '\n' => {
-                    self.cursor_x = 0;
-                    self.cursor_y += self.curr_font.height as usize;
-                }
-                _ => self.write_char(c)?,
-            }
         }
 
         Ok(())

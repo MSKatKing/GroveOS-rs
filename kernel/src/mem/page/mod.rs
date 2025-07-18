@@ -4,6 +4,7 @@ use core::ops::Deref;
 use core::ptr::NonNull;
 
 mod page_table;
+mod physical;
 pub mod allocator;
 
 /// TODO: Rework of this system is required
@@ -23,6 +24,7 @@ pub type PhysAddr = u64;
 pub enum PageAllocationError {
     OutOfMemory,
     OutOfVirtualMemory,
+    InvalidDeallocationPointer,
 }
 
 #[repr(transparent)]

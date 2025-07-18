@@ -198,6 +198,7 @@ impl PageTable {
         unsafe { (Self::PAGE_TABLE_WORK_PAGE as *mut PageTable).as_mut_unchecked() }
     }
 
+    #[inline(always)]
     fn invplg(vaddr: VirtAddr) {
         unsafe {
             asm!("invlpg [{}]", in(reg) vaddr, options(nostack, preserves_flags));

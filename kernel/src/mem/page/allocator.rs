@@ -91,6 +91,10 @@ impl PageAllocator {
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {
         todo!()
     }
+    
+    pub fn drop(self) {
+        self.pml4.drop()
+    }
 
     fn get_next_addr(&self) -> VirtAddr {
         self.virt_ptr * PAGE_SIZE as u64

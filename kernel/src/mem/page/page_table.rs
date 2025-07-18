@@ -177,6 +177,33 @@ impl PageTable {
         Some(page + offset)
     }
 
+    pub fn drop(&mut self) {
+        let ppa = PhysicalPageAllocator::get();
+
+        let pml4_addr = self.translate(Self::PAGE_TABLE_PML4_PAGE).expect("should exist");
+
+        for i in 0..512 {
+            if let Some(pdpt_addr) = self.0[i].get_addr() {
+                let mut pdpt = Self::map_temp(pdpt_addr);
+                for j in 0..512 {
+                    if let Some(pd_addr) = pdpt.0[j].get_addr() {
+                        let pd = Self::map_temp(pd_addr);
+                        for k in 0..512 {
+                            if let Some(pt) = pd.0[k].get_addr() {
+                                ppa.dealloc(pt).expect("should exist")
+                            }
+                        }
+                        ppa.dealloc(pd_addr).expect("should exist");
+                        pdpt = Self::map_temp(pdpt_addr);
+                    }
+                }
+                ppa.dealloc(pdpt_addr).expect("should exist");
+            }
+        }
+
+        ppa.dealloc(pml4_addr).expect("should exist");
+    }
+
     fn get_or_create(&mut self, idx: usize) -> Result<PhysAddr, PageAllocationError> {
         if self.0[idx].get_addr().is_none() {
             let phys = PhysicalPageAllocator::get().alloc()?;

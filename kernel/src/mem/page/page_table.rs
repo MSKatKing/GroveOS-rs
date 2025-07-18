@@ -98,15 +98,57 @@ impl PageTable {
     }
 
     pub fn map_addr(&mut self, vaddr: VirtAddr, paddr: PhysAddr, flags: u64) -> Result<(), PageAllocationError> {
-        todo!()
+        let (pml4_idx, pdpt_idx, pd_idx, pt_idx) = Self::indexes_of(vaddr);
+
+        let pdpt = Self::map_temp(self.get_or_create(pml4_idx)?);
+        let pd = Self::map_temp(pdpt.get_or_create(pdpt_idx)?);
+        let pt = Self::map_temp(pd.get_or_create(pd_idx)?);
+
+        pt.0[pt_idx].map_to_addr(paddr);
+        pt.0[pt_idx].set_flag(flags, true);
+        Self::invplg(vaddr);
+
+        Ok(())
     }
 
     pub fn unmap_addr(&mut self, vaddr: VirtAddr) {
-        todo!()
+        let (pml4_idx, pdpt_idx, pd_idx, pt_idx) = Self::indexes_of(vaddr);
+
+        if let Some(pdpt) = self.0[pml4_idx].get_addr() {
+            let pdpt = Self::map_temp(pdpt);
+            if let Some(pd) = pdpt.0[pdpt_idx].get_addr() {
+                let pd = Self::map_temp(pd);
+                if let Some(pt) = pd.0[pd_idx].get_addr() {
+                    let pt = Self::map_temp(pt);
+
+                    pt.0[pt_idx].map_to_addr(0);
+                }
+            }
+        }
+
+        Self::invplg(vaddr);
     }
 
     pub fn is_mapped(&self, vaddr: VirtAddr) -> bool {
-        todo!()
+        let (pml4_idx, pdpt_idx, pd_idx, pt_idx) = Self::indexes_of(vaddr);
+
+        if let Some(pdpt) = self.0[pml4_idx].get_addr() {
+            let pdpt = Self::map_temp(pdpt);
+            if let Some(pd) = pdpt.0[pdpt_idx].get_addr() {
+                let pd = Self::map_temp(pd);
+                if let Some(pt) = pd.0[pd_idx].get_addr() {
+                    let pt = Self::map_temp(pt);
+
+                    pt.0[pt_idx].get_addr().is_some()
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     pub fn translate(&self, vaddr: VirtAddr) -> Option<PhysAddr> {
@@ -125,6 +167,16 @@ impl PageTable {
         let offset = vaddr & 0xFFF;
 
         Some(page + offset)
+    }
+
+    fn get_or_create(&mut self, idx: usize) -> Result<PhysAddr, PageAllocationError> {
+        if self.0[idx].get_addr().is_none() {
+            let phys = PhysicalPageAllocator::get().alloc()?;
+            self.0[idx].map_to_addr(phys);
+            self.0[idx].set_flag(WRITABLE, true);
+        }
+
+        Ok(self.0[idx].get_addr().expect("should exist"))
     }
 
     fn indexes_of(vaddr: VirtAddr) -> (usize, usize, usize, usize) {

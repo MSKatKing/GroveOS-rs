@@ -109,6 +109,33 @@ impl PageTable {
         todo!()
     }
 
+    pub fn translate(&self, vaddr: VirtAddr) -> Option<PhysAddr> {
+        let (pml4_idx, pdpt_idx, pd_idx, pt_idx) = Self::indexes_of(vaddr);
+
+        let pdpt = self.0[pml4_idx].get_addr()?;
+        let pdpt = Self::map_temp(pdpt);
+
+        let pd = pdpt.0[pdpt_idx].get_addr()?;
+        let pd = Self::map_temp(pd);
+
+        let pt = pd.0[pd_idx].get_addr()?;
+        let pt = Self::map_temp(pt);
+
+        let page = pt.0[pt_idx].get_addr()?;
+        let offset = vaddr & 0xFFF;
+
+        Some(page + offset)
+    }
+
+    fn indexes_of(vaddr: VirtAddr) -> (usize, usize, usize, usize) {
+        let vaddr = vaddr as usize;
+        fn index(vaddr: usize, level: usize) -> usize {
+            (vaddr >> (12 + 9 * level)) & 0x1FF
+        }
+
+        (index(vaddr, 3), index(vaddr, 2), index(vaddr, 1), index(vaddr, 0))
+    }
+
     fn map_temp(addr: PhysAddr) -> &'static mut PageTable {
         let work_entry = unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTable).as_mut_unchecked() };
         work_entry.0[511].swap_addr(addr);

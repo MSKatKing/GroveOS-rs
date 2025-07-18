@@ -50,16 +50,16 @@ pub extern "C" fn _start() -> ! {
         let boot_info: u64;
         asm!("mov {boot_info}, rdi", boot_info = out(reg) boot_info);
         
-        & *(boot_info as *const UEFIBootInfo)
+        (boot_info as *const UEFIBootInfo).read()
     };
     
-    init_writer(FramebufferWriter::from(boot_info));
+    init_writer(FramebufferWriter::from(&boot_info));
     
     framebuffer_writer().clear();
 
     page::allocator::init_paging(boot_info);
     
-    FrameAllocator::init(boot_info);
+    FrameAllocator::init(&boot_info);
 
     println!("Initializing GDT...");
     install_gdt_defaults();

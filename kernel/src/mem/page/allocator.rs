@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use crate::mem::heap::PAGE_SIZE;
-use crate::mem::page::{Page, PhysAddr, VirtAddr};
+use crate::mem::page::{Page, PageAllocationError, PhysAddr, VirtAddr};
 use crate::mem::page::page_table::{PageTable, PageTableEntry};
 use crate::UEFIBootInfo;
 
@@ -24,6 +24,8 @@ pub struct PageAllocator {
 }
 
 impl PageAllocator {
+    const MAX_VIRT_PAGE: u64 = 0xFFFF_FFFF_FFFF_F;
+
     pub fn kernel() -> &'static mut PageAllocator {
         #[allow(static_mut_refs)]
         unsafe { &mut KERNEL_PAGE_ALLOCATOR }
@@ -38,28 +40,29 @@ impl PageAllocator {
         }
     }
     
-    pub fn alloc(&mut self) -> Option<Page> {
-        // SAFETY: pml4 is edited but needs a reference to self. It does access pml4, but not simultaneously and not the same part.
-        let allocator = unsafe { (self as *mut Self).as_mut_unchecked() };
+    pub fn alloc(&mut self) -> Result<Page, PageAllocationError> {
+        if !self.pml4.is_mapped(self.get_next_addr()) {
+            let virt = self.get_next_addr();
+            let phys = PhysicalMemoryBitmap::get().get_next_available().ok_or(PageAllocationError::OutOfMemory)?;
+            self.virt_ptr += 1;
 
-        let old_work_addr = unsafe { PageTable::swap_work_page(PageTable::PAGE_TABLE_WORK_PAGE) };
-        if let Some(mut entry) = self.pml4.get_lowest_entry_or_create(allocator, PageTable::PML4_LEVEL, self.get_next_addr()) {
-            if let None = entry.get_addr() {
-                let addr = PhysicalMemoryBitmap::get().get_next_available()?;
-                entry.map_to_addr(addr);
-                self.pml4.set_lowest_entry(allocator, PageTable::PML4_LEVEL, self.get_next_addr(), entry);
-                unsafe { PageTable::swap_work_page(old_work_addr) };
-                self.virt_ptr += 1;
-
-                Some(Page { addr: self.get_next_addr(), allocator: self })
-            } else {
-                // virt_ptr was already taken, move on
-                unsafe { PageTable::swap_work_page(old_work_addr) };
-                None
-            }
+            self.pml4.map_addr(virt, phys, 0)?;
+            Ok(Page { addr: virt, allocator: self })
         } else {
-            // Something went wrong creating the entry
-            None
+            for idx in self.virt_ptr..Self::MAX_VIRT_PAGE {
+                self.virt_ptr = idx;
+
+                if !self.pml4.is_mapped(self.get_next_addr()) {
+                    let virt = self.get_next_addr();
+                    let phys = PhysicalMemoryBitmap::get().get_next_available().ok_or(PageAllocationError::OutOfMemory)?;
+                    self.virt_ptr += 1;
+
+                    self.pml4.map_addr(virt, phys, 0)?;
+                    return Ok(Page { addr: virt, allocator: self });
+                }
+            }
+
+            Err(PageAllocationError::OutOfVirtualMemory)
         }
     }
     
@@ -162,7 +165,7 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
         MEMORY_BITMAP.phys_ptr = 0;
 
         KERNEL_PAGE_ALLOCATOR = PageAllocator::new_uninit();
-        KERNEL_PAGE_ALLOCATOR.pml4.setup(&mut KERNEL_PAGE_ALLOCATOR);
+        KERNEL_PAGE_ALLOCATOR.pml4.setup_pml4().expect("TODO: panic message");
     }
 
     // TODO: setup kernel page allocator

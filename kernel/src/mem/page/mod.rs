@@ -21,6 +21,7 @@ pub mod allocator;
 pub type VirtAddr = u64;
 pub type PhysAddr = u64;
 
+#[derive(Debug)]
 pub enum PageAllocationError {
     OutOfMemory,
     OutOfVirtualMemory,

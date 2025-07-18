@@ -97,7 +97,7 @@ impl PageTable {
         unsafe { (Self::PAGE_TABLE_PML4_PAGE as *mut PageTable).as_mut_unchecked() }
     }
 
-    pub fn map_addr(&mut self, vaddr: VirtAddr, paddr: PhysAddr, flags: u64) {
+    pub fn map_addr(&mut self, vaddr: VirtAddr, paddr: PhysAddr, flags: u64) -> Result<(), PageAllocationError> {
         todo!()
     }
 
@@ -105,7 +105,7 @@ impl PageTable {
         todo!()
     }
 
-    pub fn is_mapped(vaddr: VirtAddr) -> bool {
+    pub fn is_mapped(&self, vaddr: VirtAddr) -> bool {
         todo!()
     }
 

@@ -2,6 +2,7 @@ use crate::mem::page::allocator::PageAllocator;
 use crate::mem::page::page_table::{EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE};
 use core::ops::Deref;
 use core::ptr::NonNull;
+use crate::UEFIBootInfo;
 
 mod page_table;
 mod physical;
@@ -17,6 +18,11 @@ pub mod allocator;
 /// TODO: PageAllocator should make sure the unsafe page table functions are safe
 /// TODO: PageAllocator should have a kernel() and current() method for getting the necessary PageAllocator
 /// TODO: PageAllocator should be designed to be created over and over (because its going to be used per-process
+
+pub fn init_paging(boot_info: &UEFIBootInfo) {
+    physical::setup_ppa(boot_info);
+    allocator::init_paging(boot_info);
+}
 
 pub type VirtAddr = u64;
 pub type PhysAddr = u64;

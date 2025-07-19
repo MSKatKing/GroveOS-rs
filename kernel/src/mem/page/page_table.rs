@@ -66,7 +66,7 @@ impl PageTable {
 
     pub fn install(&self) {
         unsafe {
-            let phys = PageAllocator::current().pml4.translate(self as *const Self as u64).expect("should be mapped");
+            let phys = PageTable::current().translate(self as *const Self as u64).expect("should be mapped");
             asm!("mov cr3, [{}]", in(reg) phys);
         }
     }

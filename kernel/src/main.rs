@@ -21,6 +21,7 @@ use core::arch::asm;
 use core::panic::PanicInfo;
 use crate::mem::heap::metadata::HeapMetadata;
 use crate::mem::page;
+use crate::mem::page::allocator::PageAllocator;
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -57,8 +58,13 @@ pub extern "C" fn _start() -> ! {
     
     framebuffer_writer().clear();
 
-    page::allocator::init_paging(&boot_info);
-    
+    page::init_paging(&boot_info);
+
+    match PageAllocator::kernel().alloc() {
+        Ok(page) => println!("{}", page.virt_addr()),
+        Err(e) => println!("{:?}", e),
+    }
+
     FrameAllocator::init(&boot_info);
 
     println!("Initializing GDT...");

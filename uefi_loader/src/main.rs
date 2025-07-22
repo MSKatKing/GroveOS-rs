@@ -235,6 +235,7 @@ fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
 }
 
 fn map_static(pml4: &mut PageTable) {
+    const PML4_VIRT: u64 = 0xFFFF_FDFF_FFFF_D000;
     const VIRT: u64 = 0xFFFF_FDFF_FFFF_E000;
 
     let pdpt = unsafe { get_or_allocate_table(pml4, page_table_index!(VIRT, 3), PAGE_WRITE | PAGE_PRESENT) };
@@ -242,7 +243,8 @@ fn map_static(pml4: &mut PageTable) {
     let pt =  unsafe { get_or_allocate_table(pd, page_table_index!(VIRT, 1), PAGE_WRITE | PAGE_PRESENT) };
     
     let phys = pt as *const PageTable as u64;
-    
+
+    pt.entries[page_table_index!(PML4_VIRT, 0)] = ((pml4 as *const PageTable as u64) & !0xFFF) | PAGE_PRESENT | PAGE_WRITE;
     pt.entries[page_table_index!(VIRT, 0)] = (phys & !0xFFF) | PAGE_PRESENT | PAGE_WRITE;
 }
 

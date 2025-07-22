@@ -48,7 +48,7 @@ impl Deref for PagePtr {
 
 pub struct Page<'a> {
     addr: VirtAddr,
-    allocator: &'a PageAllocator,
+    allocator: &'a mut PageAllocator,
 }
 
 impl Page<'_> {
@@ -76,6 +76,9 @@ impl Page<'_> {
 
 impl Drop for Page<'_> {
     fn drop(&mut self) {
-        todo!()
+        let allocator = self.allocator as *mut PageAllocator;
+        let allocator = unsafe { allocator.as_mut_unchecked() };
+
+        allocator.dealloc(self);
     }
 }

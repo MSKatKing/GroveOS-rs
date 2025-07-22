@@ -85,7 +85,7 @@ impl PageAllocator {
     }
     
     pub fn dealloc(&mut self, page: &Page) {
-        todo!()
+        self.pml4.unmap_addr(page.addr);
     }
     
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {

@@ -23,13 +23,14 @@ pub struct PageTable(pub(super) [PageTableEntry; 512]);
 impl PageTableEntry {
     /// Clears all flags and sets the address this entry is pointing to to addr
     pub fn map_to_addr(&mut self, addr: PhysAddr) {
-        self.0 = 0 | (addr & ADDR_SPAN) & PRESENT;
+        self.0 = 0 | (addr & ADDR_SPAN) | PRESENT;
     }
 
     /// Swaps the address this entry is pointing to while preserving flags
     pub fn swap_addr(&mut self, addr: PhysAddr) {
         self.0 &= !ADDR_SPAN;
         self.0 |= addr & ADDR_SPAN;
+        self.set_flag(PRESENT, true);
     }
 
     pub fn clear(&mut self) {

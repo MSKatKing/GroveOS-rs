@@ -3,19 +3,20 @@ use crate::mem::page::page_table::{PageTable, PageTableEntry};
 use crate::mem::page::{Page, PageAllocationError, VirtAddr};
 use crate::UEFIBootInfo;
 use alloc::vec::Vec;
+use core::num::NonZeroU64;
 use core::ptr::null_mut;
 use crate::mem::page::physical::PhysicalPageAllocator;
 
 static mut KERNEL_PAGE_ALLOCATOR: PageAllocator = PageAllocator {
     pml4: &mut PageTable([PageTableEntry(0); 512]),
-    virt_ptr: 0,
+    virt_ptr: unsafe { NonZeroU64::new_unchecked(1) },
 };
 
 static mut CURRENT_PAGE_ALLOCATOR: *mut PageAllocator = null_mut();
 
 pub struct PageAllocator {
     pub(super) pml4: &'static mut PageTable,
-    virt_ptr: u64,
+    virt_ptr: NonZeroU64,
 }
 
 impl PageAllocator {
@@ -42,7 +43,7 @@ impl PageAllocator {
 
         Self {
             pml4: unsafe { (phys as *mut PageTable).as_mut_unchecked() },
-            virt_ptr: 0,
+            virt_ptr: NonZeroU64::new(1).expect("not zero"),
         }
     }
     
@@ -50,18 +51,16 @@ impl PageAllocator {
         if !self.pml4.is_mapped(self.get_next_addr()) {
             let virt = self.get_next_addr();
             let phys = PhysicalPageAllocator::get().alloc()?;
-            self.virt_ptr += 1;
+            self.virt_ptr = self.virt_ptr.checked_add(1).unwrap_or(NonZeroU64::new(1).expect("not zero"));
 
             self.pml4.map_addr(virt, phys, 0)?;
             Ok(Page { addr: virt, allocator: self })
         } else {
-            for idx in self.virt_ptr..Self::MAX_VIRT_PAGE {
-                self.virt_ptr = idx;
-
+            for idx in self.virt_ptr.get()..Self::MAX_VIRT_PAGE {
                 if !self.pml4.is_mapped(self.get_next_addr()) {
                     let virt = self.get_next_addr();
                     let phys = PhysicalPageAllocator::get().alloc()?;
-                    self.virt_ptr += 1;
+                    self.virt_ptr = NonZeroU64::new(idx + 1).expect("should not be zero");
 
                     self.pml4.map_addr(virt, phys, 0)?;
                     return Ok(Page { addr: virt, allocator: self });
@@ -97,11 +96,11 @@ impl PageAllocator {
     }
 
     fn get_next_addr(&self) -> VirtAddr {
-        self.virt_ptr * PAGE_SIZE as u64
+        self.virt_ptr.get() * PAGE_SIZE as u64
     }
 
     fn set_next_addr(&mut self, addr: VirtAddr) {
-        self.virt_ptr = addr / PAGE_SIZE as u64;
+        self.virt_ptr = NonZeroU64::new(addr / PAGE_SIZE as u64).unwrap_or(NonZeroU64::new(1).expect("not zero"));
     }
 
     pub(super) fn set_flag_for_page(&self, page: &Page, flags: u64, value: bool) {

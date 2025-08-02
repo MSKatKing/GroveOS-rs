@@ -1,6 +1,6 @@
 use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page::{PageAllocationError, PhysAddr};
-use crate::{println, UEFIBootInfo};
+use crate::{UEFIBootInfo, println};
 
 static mut INSTANCE: PhysicalPageAllocator = PhysicalPageAllocator {
     bitmap: &mut [],
@@ -88,7 +88,8 @@ impl PhysicalPageAllocator {
 
 pub fn setup_ppa(boot_info: &UEFIBootInfo) {
     unsafe {
-        INSTANCE.bitmap = core::slice::from_raw_parts_mut(boot_info.memory_bitmap, boot_info.memory_bitmap_size);
+        INSTANCE.bitmap =
+            core::slice::from_raw_parts_mut(boot_info.memory_bitmap, boot_info.memory_bitmap_size);
         INSTANCE.phys_ptr = 0;
     }
 

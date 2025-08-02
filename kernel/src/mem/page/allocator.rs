@@ -1,8 +1,8 @@
 use crate::mem::heap::PAGE_SIZE;
-use crate::mem::page::page_table::{PageTable, PageTableEntry, PAGE_LEAKED, WRITABLE};
+use crate::mem::page::page_table::{PAGE_LEAKED, PageTable, PageTableEntry, WRITABLE};
 use crate::mem::page::physical::PhysicalPageAllocator;
 use crate::mem::page::{Page, PageAllocationError, PhysAddr, VirtAddr};
-use crate::{println, UEFIBootInfo};
+use crate::{UEFIBootInfo, println};
 use alloc::vec::Vec;
 use core::arch::asm;
 use core::num::NonZeroU64;
@@ -25,16 +25,19 @@ impl PageAllocator {
 
     pub fn kernel() -> &'static mut PageAllocator {
         #[allow(static_mut_refs)]
-        unsafe { &mut KERNEL_PAGE_ALLOCATOR }
+        unsafe {
+            &mut KERNEL_PAGE_ALLOCATOR
+        }
     }
-    
+
     pub fn current() -> &'static mut PageAllocator {
         unsafe { CURRENT_PAGE_ALLOCATOR.as_mut_unchecked() }
     }
-    
+
     pub fn install(&mut self) {
         self.pml4.install();
-        self.pml4 = unsafe { (PageTable::PAGE_TABLE_PML4_PAGE as *mut PageTable).as_mut_unchecked() };
+        self.pml4 =
+            unsafe { (PageTable::PAGE_TABLE_PML4_PAGE as *mut PageTable).as_mut_unchecked() };
 
         unsafe {
             CURRENT_PAGE_ALLOCATOR = self as *mut Self;
@@ -49,16 +52,22 @@ impl PageAllocator {
             virt_ptr: NonZeroU64::new(1).expect("not zero"),
         }
     }
-    
+
     pub fn alloc(&mut self) -> Result<Page, PageAllocationError> {
         if !self.pml4.is_mapped(self.get_next_addr()) {
             let virt = self.get_next_addr();
             let phys = PhysicalPageAllocator::get().alloc()?;
 
-            self.virt_ptr = self.virt_ptr.checked_add(1).unwrap_or(NonZeroU64::new(1).expect("not zero"));
+            self.virt_ptr = self
+                .virt_ptr
+                .checked_add(1)
+                .unwrap_or(NonZeroU64::new(1).expect("not zero"));
 
             self.pml4.map_addr(virt, phys, WRITABLE)?;
-            Ok(Page { addr: virt, allocator: self })
+            Ok(Page {
+                addr: virt,
+                allocator: self,
+            })
         } else {
             for idx in self.virt_ptr.get() + 1..Self::MAX_VIRT_PAGE {
                 if !self.pml4.is_mapped(idx * PAGE_SIZE as u64) {
@@ -67,28 +76,36 @@ impl PageAllocator {
                     self.virt_ptr = NonZeroU64::new(idx + 1).expect("should not be zero");
 
                     self.pml4.map_addr(virt, phys, WRITABLE)?;
-                    return Ok(Page { addr: virt, allocator: self });
+                    return Ok(Page {
+                        addr: virt,
+                        allocator: self,
+                    });
                 }
             }
 
             Err(PageAllocationError::OutOfVirtualMemory)
         }
     }
-    
+
     pub fn alloc_many(&mut self, count: usize) -> Option<Vec<Page>> {
         todo!()
     }
-    
+
     pub fn alloc_at(&mut self, ptr: VirtAddr) -> Option<Page> {
         todo!()
     }
-    
+
     pub fn alloc_many_at(&mut self, ptr: VirtAddr, count: usize) -> Option<Vec<Page>> {
         todo!()
     }
-    
+
     pub fn dealloc(&mut self, page: &Page) {
-        if self.pml4.get_flags(page.addr).expect("should be mapped").has_flag(PAGE_LEAKED) {
+        if self
+            .pml4
+            .get_flags(page.addr)
+            .expect("should be mapped")
+            .has_flag(PAGE_LEAKED)
+        {
             return;
         }
 
@@ -97,14 +114,14 @@ impl PageAllocator {
             self.set_next_addr(page.addr);
         }
     }
-    
+
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {
         self.pml4.unmap_addr(ptr);
         if ptr < self.get_next_addr() {
             self.set_next_addr(ptr);
         }
     }
-    
+
     pub fn drop(self) {
         self.pml4.drop()
     }
@@ -114,11 +131,14 @@ impl PageAllocator {
     }
 
     fn set_next_addr(&mut self, addr: VirtAddr) {
-        self.virt_ptr = NonZeroU64::new(addr / PAGE_SIZE as u64).unwrap_or(NonZeroU64::new(1).expect("not zero"));
+        self.virt_ptr = NonZeroU64::new(addr / PAGE_SIZE as u64)
+            .unwrap_or(NonZeroU64::new(1).expect("not zero"));
     }
 
     pub(super) fn set_flag_for_page(&mut self, page: VirtAddr, flags: u64, value: bool) {
-        self.pml4.set_flags(page, flags, value).expect("page should be mapped");
+        self.pml4
+            .set_flags(page, flags, value)
+            .expect("page should be mapped");
     }
 }
 
@@ -126,18 +146,24 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
     #[allow(static_mut_refs)]
     unsafe {
         KERNEL_PAGE_ALLOCATOR = PageAllocator::new_uninit();
-        KERNEL_PAGE_ALLOCATOR.pml4.setup_pml4().expect("failed to setup kernel page table");
+        KERNEL_PAGE_ALLOCATOR
+            .pml4
+            .setup_pml4()
+            .expect("failed to setup kernel page table");
     }
 
     let framebuffer_addr = boot_info.framebuffer.addr() as PhysAddr;
     for i in 0..(boot_info.framebuffer_size * size_of::<u32>()) / PAGE_SIZE {
         #[allow(static_mut_refs)]
         unsafe {
-            KERNEL_PAGE_ALLOCATOR.pml4.map_addr(
-                framebuffer_addr + (i * PAGE_SIZE) as VirtAddr,
-                framebuffer_addr + (i * PAGE_SIZE) as PhysAddr,
-                WRITABLE
-            ).expect("failed to map framebuffer");
+            KERNEL_PAGE_ALLOCATOR
+                .pml4
+                .map_addr(
+                    framebuffer_addr + (i * PAGE_SIZE) as VirtAddr,
+                    framebuffer_addr + (i * PAGE_SIZE) as PhysAddr,
+                    WRITABLE,
+                )
+                .expect("failed to map framebuffer");
         }
     }
 
@@ -153,11 +179,14 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
     for i in 0..25 {
         #[allow(static_mut_refs)]
         unsafe {
-            KERNEL_PAGE_ALLOCATOR.pml4.map_addr(
-                stack_ptr - (i * PAGE_SIZE) as VirtAddr,
-                stack_ptr - (i * PAGE_SIZE) as PhysAddr,
-                WRITABLE,
-            ).expect("failed to map stack");
+            KERNEL_PAGE_ALLOCATOR
+                .pml4
+                .map_addr(
+                    stack_ptr - (i * PAGE_SIZE) as VirtAddr,
+                    stack_ptr - (i * PAGE_SIZE) as PhysAddr,
+                    WRITABLE,
+                )
+                .expect("failed to map stack");
         }
     }
 
@@ -165,11 +194,14 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
     for i in 0..((boot_info.memory_bitmap_size / PAGE_SIZE) + 1) {
         #[allow(static_mut_refs)]
         unsafe {
-            KERNEL_PAGE_ALLOCATOR.pml4.map_addr(
-                addr + (i * PAGE_SIZE) as VirtAddr,
-                addr + (i * PAGE_SIZE) as PhysAddr,
-                WRITABLE
-            ).expect("failed to map memory bitmap");
+            KERNEL_PAGE_ALLOCATOR
+                .pml4
+                .map_addr(
+                    addr + (i * PAGE_SIZE) as VirtAddr,
+                    addr + (i * PAGE_SIZE) as PhysAddr,
+                    WRITABLE,
+                )
+                .expect("failed to map memory bitmap");
         }
     }
 

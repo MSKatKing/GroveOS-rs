@@ -1,12 +1,14 @@
 use crate::mem::page::allocator::PageAllocator;
-use crate::mem::page::page_table::{PageTable, EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE};
+use crate::mem::page::page_table::{
+    EXECUTE_DISABLE, PAGE_LEAKED, PageTable, USER_ACCESSIBLE, WRITABLE,
+};
+use crate::{UEFIBootInfo, println};
 use core::ops::Deref;
 use core::ptr::NonNull;
-use crate::{println, UEFIBootInfo};
 
+pub mod allocator;
 mod page_table;
 mod physical;
-pub mod allocator;
 
 /// TODO: Rework of this system is required
 /// TODO: PageAllocator -> safe abstraction over PageTable for allocating VIRTUAL pages
@@ -42,7 +44,7 @@ pub struct PagePtr(NonNull<u8>);
 
 impl Deref for PagePtr {
     type Target = NonNull<u8>;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -57,22 +59,26 @@ impl Page<'_> {
     pub fn virt_addr(&self) -> VirtAddr {
         self.addr
     }
-    
+
     pub fn leak(self) -> PagePtr {
-        self.allocator.set_flag_for_page(self.addr, PAGE_LEAKED, true);
+        self.allocator
+            .set_flag_for_page(self.addr, PAGE_LEAKED, true);
         PagePtr(unsafe { NonNull::new_unchecked(self.addr as *mut u8) })
     }
-    
+
     pub fn set_writable(&mut self, writable: bool) {
-        self.allocator.set_flag_for_page(self.addr, WRITABLE, writable);
+        self.allocator
+            .set_flag_for_page(self.addr, WRITABLE, writable);
     }
-    
+
     pub fn set_executable(&mut self, executable: bool) {
-        self.allocator.set_flag_for_page(self.addr, EXECUTE_DISABLE, executable);
+        self.allocator
+            .set_flag_for_page(self.addr, EXECUTE_DISABLE, executable);
     }
-    
+
     pub fn set_user_accessible(&mut self, user_accessible: bool) {
-        self.allocator.set_flag_for_page(self.addr, USER_ACCESSIBLE, user_accessible);
+        self.allocator
+            .set_flag_for_page(self.addr, USER_ACCESSIBLE, user_accessible);
     }
 }
 

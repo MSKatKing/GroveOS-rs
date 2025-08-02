@@ -1,7 +1,7 @@
-use core::arch::asm;
-use crate::mem::page::{PageAllocationError, PhysAddr, VirtAddr};
 use crate::mem::page::physical::PhysicalPageAllocator;
+use crate::mem::page::{PageAllocationError, PhysAddr, VirtAddr};
 use crate::println;
+use core::arch::asm;
 
 pub(super) const PRESENT: u64 = 1 << 0;
 pub(super) const WRITABLE: u64 = 1 << 1;
@@ -67,7 +67,9 @@ impl PageTable {
 
     pub fn install(&self) {
         unsafe {
-            let phys = PageTable::current().translate(self as *const Self as u64).expect("should be mapped");
+            let phys = PageTable::current()
+                .translate(self as *const Self as u64)
+                .expect("should be mapped");
             asm!("mov cr3, {}", in(reg) phys);
         }
     }
@@ -79,7 +81,13 @@ impl PageTable {
         let pd = Self::map_temp(pdpt.get_or_create(pdpt_i)?);
         let pt = pd.get_or_create(pd_t)?;
 
-        self.map_addr(Self::PAGE_TABLE_PML4_PAGE, PageTable::current().translate(self as *const Self as VirtAddr).expect("should exist"), WRITABLE)?;
+        self.map_addr(
+            Self::PAGE_TABLE_PML4_PAGE,
+            PageTable::current()
+                .translate(self as *const Self as VirtAddr)
+                .expect("should exist"),
+            WRITABLE,
+        )?;
         self.map_addr(Self::PAGE_TABLE_STATIC_PAGE, pt, WRITABLE)?;
 
         Ok(())
@@ -89,7 +97,12 @@ impl PageTable {
         unsafe { (Self::PAGE_TABLE_PML4_PAGE as *mut PageTable).as_mut_unchecked() }
     }
 
-    pub fn map_addr(&mut self, vaddr: VirtAddr, paddr: PhysAddr, flags: u64) -> Result<(), PageAllocationError> {
+    pub fn map_addr(
+        &mut self,
+        vaddr: VirtAddr,
+        paddr: PhysAddr,
+        flags: u64,
+    ) -> Result<(), PageAllocationError> {
         let (pml4_idx, pdpt_idx, pd_idx, pt_idx) = Self::indexes_of(vaddr);
 
         let pdpt = Self::map_temp(self.get_or_create(pml4_idx)?);
@@ -196,7 +209,9 @@ impl PageTable {
     pub fn drop(&mut self) {
         let ppa = PhysicalPageAllocator::get();
 
-        let pml4_addr = self.translate(Self::PAGE_TABLE_PML4_PAGE).expect("should exist");
+        let pml4_addr = self
+            .translate(Self::PAGE_TABLE_PML4_PAGE)
+            .expect("should exist");
 
         for i in 0..512 {
             if let Some(pdpt_addr) = self.0[i].get_addr() {
@@ -236,11 +251,17 @@ impl PageTable {
             (vaddr >> (12 + 9 * level)) & 0x1FF
         }
 
-        (index(vaddr, 3), index(vaddr, 2), index(vaddr, 1), index(vaddr, 0))
+        (
+            index(vaddr, 3),
+            index(vaddr, 2),
+            index(vaddr, 1),
+            index(vaddr, 0),
+        )
     }
 
     fn map_temp(addr: PhysAddr) -> &'static mut PageTable {
-        let work_entry = unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTable).as_mut_unchecked() };
+        let work_entry =
+            unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTable).as_mut_unchecked() };
         work_entry.0[511].swap_addr(addr);
         work_entry.0[511].set_flag(WRITABLE, true);
 

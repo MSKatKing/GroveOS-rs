@@ -1,6 +1,5 @@
 use core::arch::asm;
 use crate::mem::page::{PageAllocationError, PhysAddr, VirtAddr};
-use crate::mem::page::allocator::PageAllocator;
 use crate::mem::page::physical::PhysicalPageAllocator;
 
 pub(super) const PRESENT: u64 = 1 << 0;

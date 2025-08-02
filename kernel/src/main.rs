@@ -60,8 +60,17 @@ pub extern "C" fn _start() -> ! {
 
     page::init_paging(&boot_info);
 
-    match PageAllocator::kernel().alloc() {
-        Ok(page) => println!("{}", page.virt_addr()),
+    let allocator = PageAllocator::kernel();
+
+    match allocator.alloc() {
+        Ok(page) => println!("{:X}", page.virt_addr()),
+        Err(e) => println!("{:?}", e),
+    }
+
+    println!("Hello, world!");
+
+    match allocator.alloc() {
+        Ok(page) => println!("{:x}", page.virt_addr()),
         Err(e) => println!("{:?}", e),
     }
 

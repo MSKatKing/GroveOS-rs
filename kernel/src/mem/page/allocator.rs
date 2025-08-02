@@ -1,7 +1,7 @@
 use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page::page_table::{PageTable, PageTableEntry};
 use crate::mem::page::{Page, PageAllocationError, VirtAddr};
-use crate::UEFIBootInfo;
+use crate::{println, UEFIBootInfo};
 use alloc::vec::Vec;
 use core::num::NonZeroU64;
 use core::ptr::null_mut;
@@ -85,10 +85,16 @@ impl PageAllocator {
     
     pub fn dealloc(&mut self, page: &Page) {
         self.pml4.unmap_addr(page.addr);
+        if page.addr < self.get_next_addr() {
+            self.set_next_addr(page.addr);
+        }
     }
     
     pub unsafe fn dealloc_raw(&mut self, ptr: VirtAddr) {
         self.pml4.unmap_addr(ptr);
+        if ptr < self.get_next_addr() {
+            self.set_next_addr(ptr);
+        }
     }
     
     pub fn drop(self) {

@@ -56,9 +56,9 @@ impl PageAllocator {
             self.pml4.map_addr(virt, phys, 0)?;
             Ok(Page { addr: virt, allocator: self })
         } else {
-            for idx in self.virt_ptr.get()..Self::MAX_VIRT_PAGE {
-                if !self.pml4.is_mapped(self.get_next_addr()) {
-                    let virt = self.get_next_addr();
+            for idx in self.virt_ptr.get() + 1..Self::MAX_VIRT_PAGE {
+                if !self.pml4.is_mapped(idx * PAGE_SIZE as u64) {
+                    let virt = idx * PAGE_SIZE as u64;
                     let phys = PhysicalPageAllocator::get().alloc()?;
                     self.virt_ptr = NonZeroU64::new(idx + 1).expect("should not be zero");
 

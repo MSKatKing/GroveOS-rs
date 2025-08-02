@@ -1,8 +1,8 @@
 use crate::mem::page::allocator::PageAllocator;
-use crate::mem::page::page_table::{EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE};
+use crate::mem::page::page_table::{PageTable, EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE};
 use core::ops::Deref;
 use core::ptr::NonNull;
-use crate::UEFIBootInfo;
+use crate::{println, UEFIBootInfo};
 
 mod page_table;
 mod physical;
@@ -22,6 +22,8 @@ pub mod allocator;
 pub fn init_paging(boot_info: &UEFIBootInfo) {
     physical::setup_ppa(boot_info);
     allocator::init_paging(boot_info);
+
+    PageAllocator::kernel().install();
 }
 
 pub type VirtAddr = u64;
@@ -57,20 +59,20 @@ impl Page<'_> {
     }
     
     pub fn leak(self) -> PagePtr {
-        self.allocator.set_flag_for_page(&self, PAGE_LEAKED, true);
+        self.allocator.set_flag_for_page(self.addr, PAGE_LEAKED, true);
         PagePtr(unsafe { NonNull::new_unchecked(self.addr as *mut u8) })
     }
     
     pub fn set_writable(&mut self, writable: bool) {
-        self.allocator.set_flag_for_page(&self, WRITABLE, writable);
+        self.allocator.set_flag_for_page(self.addr, WRITABLE, writable);
     }
     
     pub fn set_executable(&mut self, executable: bool) {
-        self.allocator.set_flag_for_page(&self, EXECUTE_DISABLE, executable);
+        self.allocator.set_flag_for_page(self.addr, EXECUTE_DISABLE, executable);
     }
     
     pub fn set_user_accessible(&mut self, user_accessible: bool) {
-        self.allocator.set_flag_for_page(&self, USER_ACCESSIBLE, user_accessible);
+        self.allocator.set_flag_for_page(self.addr, USER_ACCESSIBLE, user_accessible);
     }
 }
 

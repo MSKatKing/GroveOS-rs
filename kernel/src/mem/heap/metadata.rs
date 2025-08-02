@@ -2,9 +2,9 @@ use core::fmt::{Debug, Formatter};
 use crate::mem::heap::descriptor::HeapPageDescriptor;
 use crate::mem::heap::long::HeapLongTable;
 use crate::mem::heap::PAGE_SIZE;
-use crate::mem::page_allocator::allocate_next_page;
 use core::ops::{Index, IndexMut};
 use core::ptr::NonNull;
+use crate::mem::page::allocator::PageAllocator;
 use crate::println;
 
 pub const METADATA_ENTRY_COUNT: usize = (PAGE_SIZE - 16) / const { size_of::<HeapMetadataEntry>() };
@@ -74,10 +74,8 @@ impl HeapMetadata {
     }
     
     pub fn allocate_new_header() -> Option<NonNull<HeapMetadata>> {
-        let page = allocate_next_page()?;
-        let (ptr, _) = unsafe { page.leak() };
-        
-        println!("{:x}", ptr.as_ptr() as usize);
+        let page = PageAllocator::kernel().alloc().ok()?;
+        let ptr = page.leak();
         
         const EMPTY_METADATA_ENTRY: HeapMetadataEntry = HeapMetadataEntry {
             page: None,
@@ -211,8 +209,8 @@ impl HeapMetadataEntry {
     }
     
     pub fn try_allocate_general_page(&mut self) -> Option<()> {
-        let page = allocate_next_page()?;
-        let (ptr, _) = unsafe { page.leak() };
+        let page = PageAllocator::kernel().alloc().ok()?;
+        let ptr = page.leak();
         
         self.page = Some(ptr.cast());
         self.desc = HeapMetadataEntryType::General(HeapPageDescriptor::default());

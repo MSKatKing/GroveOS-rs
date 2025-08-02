@@ -11,17 +11,13 @@ mod cpu;
 mod mem;
 
 use alloc::vec::Vec;
-// use alloc::vec::Vec;
-use crate::cpu::gdt::{install_gdt_defaults, lgdt, GDTEntry};
+use crate::cpu::gdt::{install_gdt_defaults, lgdt};
 use crate::cpu::idt::lidt;
-use crate::mem::page_allocator::FrameAllocator;
-use crate::mem::paging::PageTable;
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 use core::arch::asm;
 use core::panic::PanicInfo;
 use crate::mem::heap::metadata::HeapMetadata;
 use crate::mem::page;
-use crate::mem::page::allocator::PageAllocator;
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -60,21 +56,7 @@ pub extern "C" fn _start() -> ! {
 
     page::init_paging(&boot_info);
 
-    let allocator = PageAllocator::kernel();
-
-    match allocator.alloc() {
-        Ok(page) => println!("{:X}", page.virt_addr()),
-        Err(e) => println!("{:?}", e),
-    }
-
-    println!("Hello, world!");
-
-    match allocator.alloc() {
-        Ok(page) => println!("{:x}", page.virt_addr()),
-        Err(e) => println!("{:?}", e),
-    }
-
-    FrameAllocator::init(&boot_info);
+    // Point where all page functions can be used
 
     println!("Initializing GDT...");
     install_gdt_defaults();
@@ -82,30 +64,6 @@ pub extern "C" fn _start() -> ! {
     
     println!("Initializing IDT...");
     lidt();
-    
-    // Point where all page functions can be used
-    
-    let pml4 = PageTable::current();
-    
-    let new_pml4 = PageTable::new();
-
-    for i in (0u64..0x10000000).step_by(0x1000) {
-        new_pml4.get_mut(i)
-            .map_to(i)
-            .set_writable(true);
-    }
-
-    for i in (0..boot_info.framebuffer_size as u64 * size_of::<u32>() as u64).step_by(0x1000) {
-        new_pml4.get_mut(i + boot_info.framebuffer as u64)
-            .map_to(i + boot_info.framebuffer as u64)
-            .set_writable(true);
-    }
-    
-    new_pml4[511] = pml4[511];
-    
-    new_pml4.install();
-
-    println!("Initialized PML4...");
     
     unsafe { HeapMetadata::init_heap(); }
 

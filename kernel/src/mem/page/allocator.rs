@@ -1,11 +1,12 @@
 use crate::mem::heap::PAGE_SIZE;
-use crate::mem::page::page_table::{PageTable, PageTableEntry};
-use crate::mem::page::{Page, PageAllocationError, VirtAddr};
+use crate::mem::page::page_table::{PageTable, PageTableEntry, PAGE_LEAKED, WRITABLE};
+use crate::mem::page::physical::PhysicalPageAllocator;
+use crate::mem::page::{Page, PageAllocationError, PhysAddr, VirtAddr};
 use crate::{println, UEFIBootInfo};
 use alloc::vec::Vec;
+use core::arch::asm;
 use core::num::NonZeroU64;
 use core::ptr::null_mut;
-use crate::mem::page::physical::PhysicalPageAllocator;
 
 static mut KERNEL_PAGE_ALLOCATOR: PageAllocator = PageAllocator {
     pml4: &mut PageTable([PageTableEntry(0); 512]),
@@ -33,6 +34,8 @@ impl PageAllocator {
     
     pub fn install(&mut self) {
         self.pml4.install();
+        self.pml4 = unsafe { (PageTable::PAGE_TABLE_PML4_PAGE as *mut PageTable).as_mut_unchecked() };
+
         unsafe {
             CURRENT_PAGE_ALLOCATOR = self as *mut Self;
         }
@@ -51,9 +54,10 @@ impl PageAllocator {
         if !self.pml4.is_mapped(self.get_next_addr()) {
             let virt = self.get_next_addr();
             let phys = PhysicalPageAllocator::get().alloc()?;
+
             self.virt_ptr = self.virt_ptr.checked_add(1).unwrap_or(NonZeroU64::new(1).expect("not zero"));
 
-            self.pml4.map_addr(virt, phys, 0)?;
+            self.pml4.map_addr(virt, phys, WRITABLE)?;
             Ok(Page { addr: virt, allocator: self })
         } else {
             for idx in self.virt_ptr.get() + 1..Self::MAX_VIRT_PAGE {
@@ -62,7 +66,7 @@ impl PageAllocator {
                     let phys = PhysicalPageAllocator::get().alloc()?;
                     self.virt_ptr = NonZeroU64::new(idx + 1).expect("should not be zero");
 
-                    self.pml4.map_addr(virt, phys, 0)?;
+                    self.pml4.map_addr(virt, phys, WRITABLE)?;
                     return Ok(Page { addr: virt, allocator: self });
                 }
             }
@@ -84,6 +88,10 @@ impl PageAllocator {
     }
     
     pub fn dealloc(&mut self, page: &Page) {
+        if self.pml4.get_flags(page.addr).expect("should be mapped").has_flag(PAGE_LEAKED) {
+            return;
+        }
+
         self.pml4.unmap_addr(page.addr);
         if page.addr < self.get_next_addr() {
             self.set_next_addr(page.addr);
@@ -109,8 +117,8 @@ impl PageAllocator {
         self.virt_ptr = NonZeroU64::new(addr / PAGE_SIZE as u64).unwrap_or(NonZeroU64::new(1).expect("not zero"));
     }
 
-    pub(super) fn set_flag_for_page(&self, page: &Page, flags: u64, value: bool) {
-        todo!()
+    pub(super) fn set_flag_for_page(&mut self, page: VirtAddr, flags: u64, value: bool) {
+        self.pml4.set_flags(page, flags, value).expect("page should be mapped");
     }
 }
 
@@ -118,10 +126,52 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
     #[allow(static_mut_refs)]
     unsafe {
         KERNEL_PAGE_ALLOCATOR = PageAllocator::new_uninit();
-        KERNEL_PAGE_ALLOCATOR.pml4.setup_pml4().expect("TODO: panic message");
+        KERNEL_PAGE_ALLOCATOR.pml4.setup_pml4().expect("failed to setup kernel page table");
     }
 
-    // TODO: setup kernel page allocator
-    // TODO: map boot info data into kernel page tables
-    // TODO: fill physical memory bitmap with known used pages
+    let framebuffer_addr = boot_info.framebuffer.addr() as PhysAddr;
+    for i in 0..(boot_info.framebuffer_size * size_of::<u32>()) / PAGE_SIZE {
+        #[allow(static_mut_refs)]
+        unsafe {
+            KERNEL_PAGE_ALLOCATOR.pml4.map_addr(
+                framebuffer_addr + (i * PAGE_SIZE) as VirtAddr,
+                framebuffer_addr + (i * PAGE_SIZE) as PhysAddr,
+                WRITABLE
+            ).expect("failed to map framebuffer");
+        }
+    }
+
+    unsafe {
+        KERNEL_PAGE_ALLOCATOR.pml4.0[511] = PageTable::current().0[511];
+    }
+
+    let stack_ptr: VirtAddr;
+    unsafe {
+        asm!("mov {0}, rsp", out(reg) stack_ptr);
+    }
+
+    for i in 0..25 {
+        #[allow(static_mut_refs)]
+        unsafe {
+            KERNEL_PAGE_ALLOCATOR.pml4.map_addr(
+                stack_ptr - (i * PAGE_SIZE) as VirtAddr,
+                stack_ptr - (i * PAGE_SIZE) as PhysAddr,
+                WRITABLE,
+            ).expect("failed to map stack");
+        }
+    }
+
+    let addr = boot_info.memory_bitmap.addr() as PhysAddr;
+    for i in 0..((boot_info.memory_bitmap_size / PAGE_SIZE) + 1) {
+        #[allow(static_mut_refs)]
+        unsafe {
+            KERNEL_PAGE_ALLOCATOR.pml4.map_addr(
+                addr + (i * PAGE_SIZE) as VirtAddr,
+                addr + (i * PAGE_SIZE) as PhysAddr,
+                WRITABLE
+            ).expect("failed to map memory bitmap");
+        }
+    }
+
+    // TODO: map PageTable::current().0[511] into physical page allocator
 }

@@ -1,8 +1,8 @@
 use crate::mem::heap::PAGE_SIZE;
-use crate::mem::page::page_table::{PAGE_LEAKED, PageTable, PageTableEntry, WRITABLE};
+use crate::mem::page::page_table::{PageTable, PageTableEntry, PAGE_LEAKED, WRITABLE};
 use crate::mem::page::physical::PhysicalPageAllocator;
 use crate::mem::page::{Page, PageAllocationError, PhysAddr, VirtAddr};
-use crate::{UEFIBootInfo, println};
+use crate::UEFIBootInfo;
 use alloc::vec::Vec;
 use core::arch::asm;
 use core::num::NonZeroU64;

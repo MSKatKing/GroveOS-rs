@@ -1,8 +1,7 @@
-use crate::mem::heap::PAGE_SIZE;
 use crate::mem::heap::descriptor::HeapPageDescriptor;
 use crate::mem::heap::long::HeapLongTable;
+use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page::allocator::PageAllocator;
-use crate::println;
 use core::fmt::{Debug, Formatter};
 use core::ops::{Index, IndexMut};
 use core::ptr::NonNull;

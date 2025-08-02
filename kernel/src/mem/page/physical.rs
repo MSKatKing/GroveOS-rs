@@ -1,6 +1,6 @@
 use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page::{PageAllocationError, PhysAddr};
-use crate::{UEFIBootInfo, println};
+use crate::UEFIBootInfo;
 
 static mut INSTANCE: PhysicalPageAllocator = PhysicalPageAllocator {
     bitmap: &mut [],

@@ -1,8 +1,8 @@
 use crate::mem::page::allocator::PageAllocator;
 use crate::mem::page::page_table::{
-    EXECUTE_DISABLE, PAGE_LEAKED, PageTable, USER_ACCESSIBLE, WRITABLE,
+    EXECUTE_DISABLE, PAGE_LEAKED, USER_ACCESSIBLE, WRITABLE,
 };
-use crate::{UEFIBootInfo, println};
+use crate::UEFIBootInfo;
 use core::ops::Deref;
 use core::ptr::NonNull;
 

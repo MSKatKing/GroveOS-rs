@@ -70,7 +70,11 @@ pub extern "C" fn _start() -> ! {
         HeapMetadata::init_heap();
     }
 
+    framebuffer_writer().clear();
+
     // Point where all heap functions can be used.
+
+    cpu::print_cpu_info();
 
     loop {
         unsafe {

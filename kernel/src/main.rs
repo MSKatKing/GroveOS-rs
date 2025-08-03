@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(alloc_error_handler)]
 #![feature(ptr_as_ref_unchecked)]
-
+#![feature(abi_x86_interrupt)]
 extern crate alloc;
 
 mod cpu;
@@ -12,7 +12,7 @@ mod screen;
 use alloc::vec::Vec;
 // use alloc::vec::Vec;
 use crate::cpu::gdt::{install_gdt_defaults, lgdt};
-use crate::cpu::idt::lidt;
+use crate::cpu::idt::{lidt, setup_idt};
 use crate::mem::heap::metadata::HeapMetadata;
 use crate::mem::page;
 use crate::screen::{FramebufferWriter, framebuffer_writer, init_writer};
@@ -54,16 +54,17 @@ pub extern "C" fn _start() -> ! {
 
     framebuffer_writer().clear();
 
-    page::init_paging(&boot_info);
-
-    // Point where all page functions can be used
-
     println!("Initializing GDT...");
     install_gdt_defaults();
     lgdt();
 
     println!("Initializing IDT...");
+    setup_idt();
     lidt();
+
+    page::init_paging(&boot_info);
+
+    // Point where all page functions can be used
 
     unsafe {
         HeapMetadata::init_heap();

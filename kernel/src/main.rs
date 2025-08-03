@@ -7,6 +7,7 @@ extern crate alloc;
 mod screen;
 mod cpu;
 mod mem;
+mod io;
 
 use alloc::vec::Vec;
 // use alloc::vec::Vec;

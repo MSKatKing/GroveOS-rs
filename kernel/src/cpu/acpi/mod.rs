@@ -1,3 +1,5 @@
+mod mcfg;
+
 use core::ptr;
 use crate::mem::page::page_table::PageTable;
 use crate::mem::page::VirtAddr;
@@ -164,5 +166,22 @@ pub unsafe fn print_acpi_table(table_ptr: *const AcpiSdtHeader) {
             a,
             b
         );
+
+        if sig == "MCFG" {
+            if let Some(allocs) = mcfg::parse_mcfg_table(header) {
+                for alloc in allocs {
+                    for header in alloc.iter() {
+                        let header = &*header;
+
+                        if header.vendor_id == 0xFFFF {
+                            continue;
+                        }
+
+                        println!("MCFG Header @ {:#x}: {:?}", header as *const _ as usize, header)
+                    }
+                }
+            }
+
+        }
     }
 }

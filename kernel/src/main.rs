@@ -18,6 +18,7 @@ use crate::mem::page;
 use crate::screen::{FramebufferWriter, framebuffer_writer, init_writer};
 use core::arch::asm;
 use core::panic::PanicInfo;
+use crate::cpu::acpi::Rsdp;
 
 unsafe extern "C" {
     static __kernel_vstart: *const u64;
@@ -33,6 +34,8 @@ pub struct UEFIBootInfo {
 
     pub memory_bitmap: *mut u8,
     pub memory_bitmap_size: usize,
+    
+    pub acpi_rsdp: *const u8,
 }
 
 #[unsafe(no_mangle)]
@@ -75,6 +78,10 @@ pub extern "C" fn _start() -> ! {
     // Point where all heap functions can be used.
 
     cpu::print_cpu_info();
+    
+    unsafe {
+        cpu::acpi::parse_rsdp(boot_info.acpi_rsdp as *const Rsdp);
+    }
 
     loop {
         unsafe {

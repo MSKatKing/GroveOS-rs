@@ -7,7 +7,7 @@ use core::ops::Deref;
 use core::ptr::NonNull;
 
 pub mod allocator;
-mod page_table;
+pub mod page_table;
 mod physical;
 
 /// TODO: Rework of this system is required

@@ -4,6 +4,7 @@ use core::cell::LazyCell;
 
 pub mod gdt;
 pub mod idt;
+pub mod acpi;
 
 pub fn print_cpu_info() {
     println!("---------- CPU Info ----------");

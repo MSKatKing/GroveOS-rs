@@ -11,9 +11,11 @@ use uefi::boot::{AllocateType, MemoryType, OpenProtocolAttributes, OpenProtocolP
 use uefi::mem::memory_map::MemoryMap;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
+use uefi::proto::device_path::acpi::Acpi;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileHandle, FileInfo, FileMode};
 use uefi::proto::media::fs::SimpleFileSystem;
+use uefi::table::cfg::{ACPI2_GUID, ACPI_GUID};
 
 #[global_allocator]
 static ALLOCATOR: Allocator = Allocator;
@@ -117,6 +119,8 @@ fn main() -> Status {
         (*boot_info).framebuffer_size = framebuffer.len();
         (*boot_info).framebuffer_width = width;
         (*boot_info).framebuffer_height = height;
+
+        (*boot_info).rsdp_ptr = find_rsdp().expect("Failed to find rsdp, acpi tables inaccessible");
     }
 
     let prev_map = boot::memory_map(MemoryType::LOADER_DATA).unwrap();
@@ -257,4 +261,32 @@ struct UEFIBootInfo {
 
     pub memory_bitmap: *mut u8,
     pub memory_bitmap_size: usize,
+
+    rsdp_ptr: *const u8,
+}
+
+fn find_rsdp() -> Option<*const u8> {
+    let version2 = system::with_config_table(|configs| {
+        for cfg in configs.iter() {
+            if cfg.guid == ACPI2_GUID {
+                return Some(cfg.address as *const u8)
+            }
+        }
+
+        None
+    });
+
+    if let Some(version2) = version2 {
+        Some(version2)
+    } else {
+        system::with_config_table(|configs| {
+            for cfg in configs.iter() {
+                if cfg.guid == ACPI_GUID {
+                    return Some(cfg.address as *const u8)
+                }
+            }
+
+            None
+        })
+    }
 }

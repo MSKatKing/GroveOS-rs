@@ -205,5 +205,17 @@ pub fn init_paging(boot_info: &UEFIBootInfo) {
         }
     }
 
+    #[allow(static_mut_refs)]
+    unsafe {
+        KERNEL_PAGE_ALLOCATOR
+            .pml4
+            .map_addr(
+                boot_info.acpi_rsdp as VirtAddr,
+                boot_info.acpi_rsdp as VirtAddr,
+                0,
+            )
+            .expect("failed to map acpi rsdp");
+    }
+
     // TODO: map PageTable::current().0[511] into physical page allocator
 }

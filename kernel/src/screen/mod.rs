@@ -6,8 +6,8 @@ mod font;
 
 pub struct FramebufferWriter {
     framebuffer: &'static mut [u32],
-    width: usize,
-    height: usize,
+    pub width: usize,
+    pub height: usize,
 
     cursor_x: usize,
     cursor_y: usize,
@@ -24,6 +24,10 @@ impl FramebufferWriter {
         self.cursor_y = 0;
 
         self.framebuffer.fill(self.bg_color);
+    }
+    
+    pub fn force_write(&mut self, x: usize, y: usize, value: u32) {
+        self.framebuffer[y * self.width + x] = value;
     }
 }
 

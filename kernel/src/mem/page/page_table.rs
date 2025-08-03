@@ -7,7 +7,7 @@ pub(super) const WRITABLE: u64 = 1 << 1;
 pub(super) const USER_ACCESSIBLE: u64 = 1 << 2;
 pub(super) const WRITE_THROUGH: u64 = 1 << 3;
 pub(super) const CACHE_DISABLE: u64 = 1 << 4;
-pub(super) const PAGE_LEAKED: u64 = 1 << 62;
+pub(super) const PAGE_LEAKED: u64 = 1 << 9;
 pub(super) const EXECUTE_DISABLE: u64 = 1 << 63;
 
 const ADDR_SPAN: u64 = 0x000F_FFFF_FFFF_F000;
@@ -55,6 +55,7 @@ impl PageTableEntry {
 }
 
 impl PageTable {
+    const PAGE_TABLE_CREATE_PAGE: VirtAddr = 0xFFFF_FDFF_FFFF_C000;
     pub(super) const PAGE_TABLE_PML4_PAGE: VirtAddr = 0xFFFF_FDFF_FFFF_D000;
     const PAGE_TABLE_STATIC_PAGE: VirtAddr = 0xFFFF_FDFF_FFFF_E000;
     const PAGE_TABLE_WORK_PAGE: VirtAddr = 0xFFFF_FDFF_FFFF_F000;
@@ -110,7 +111,7 @@ impl PageTable {
 
         pt.0[pt_idx].map_to_addr(paddr);
         pt.0[pt_idx].set_flag(flags, true);
-        Self::invplg(vaddr);
+        Self::invlpg(vaddr);
 
         Ok(())
     }
@@ -130,7 +131,7 @@ impl PageTable {
             }
         }
 
-        Self::invplg(vaddr);
+        Self::invlpg(vaddr);
     }
 
     pub fn is_mapped(&self, vaddr: VirtAddr) -> bool {
@@ -193,14 +194,9 @@ impl PageTable {
     pub fn get_flags(&self, vaddr: VirtAddr) -> Option<PageTableEntry> {
         let (pml4_idx, pdpt_idx, pd_idx, pt_idx) = Self::indexes_of(vaddr);
 
-        let pdpt = self.0[pml4_idx].get_addr()?;
-        let pdpt = Self::map_temp(pdpt);
-
-        let pd = pdpt.0[pdpt_idx].get_addr()?;
-        let pd = Self::map_temp(pd);
-
-        let pt = pd.0[pd_idx].get_addr()?;
-        let pt = Self::map_temp(pt);
+        let pdpt = Self::map_temp(self.get(pml4_idx)?);
+        let pd = Self::map_temp(pdpt.get(pdpt_idx)?);
+        let pt = Self::map_temp(pd.get(pd_idx)?);
 
         Some(pt.0[pt_idx])
     }
@@ -235,18 +231,29 @@ impl PageTable {
     }
 
     fn get_or_create(&mut self, idx: usize) -> Result<PhysAddr, PageAllocationError> {
-        if self.0[idx].get_addr().is_none() {
+        if let Some(addr) = self.0[idx].get_addr() {
+            Ok(addr)
+        } else {
             let phys = PhysicalPageAllocator::get().alloc()?;
+
+            let table = Self::map_create(phys);
+            table.0.fill(PageTableEntry(0));
+
             self.0[idx].map_to_addr(phys);
             self.0[idx].set_flag(WRITABLE, true);
-        }
 
-        Ok(self.0[idx].get_addr().expect("should exist"))
+            Ok(phys)
+        }
     }
 
-    fn indexes_of(vaddr: VirtAddr) -> (usize, usize, usize, usize) {
+    #[inline(always)]
+    fn get(&self, idx: usize) -> Option<PhysAddr> {
+        self.0[idx].get_addr()
+    }
+
+    const fn indexes_of(vaddr: VirtAddr) -> (usize, usize, usize, usize) {
         let vaddr = vaddr as usize;
-        fn index(vaddr: usize, level: usize) -> usize {
+        const fn index(vaddr: usize, level: usize) -> usize {
             (vaddr >> (12 + 9 * level)) & 0x1FF
         }
 
@@ -261,16 +268,29 @@ impl PageTable {
     fn map_temp(addr: PhysAddr) -> &'static mut PageTable {
         let work_entry =
             unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTable).as_mut_unchecked() };
-        work_entry.0[511].swap_addr(addr);
+        work_entry.0[511].map_to_addr(addr);
         work_entry.0[511].set_flag(WRITABLE, true);
 
-        Self::invplg(Self::PAGE_TABLE_WORK_PAGE);
+        Self::invlpg(Self::PAGE_TABLE_WORK_PAGE);
 
         unsafe { (Self::PAGE_TABLE_WORK_PAGE as *mut PageTable).as_mut_unchecked() }
     }
 
+    fn map_create(addr: PhysAddr) -> &'static mut PageTable {
+        let pt_idx = Self::indexes_of(Self::PAGE_TABLE_CREATE_PAGE).3;
+
+        let work_entry =
+            unsafe { (Self::PAGE_TABLE_STATIC_PAGE as *mut PageTable).as_mut_unchecked() };
+        work_entry.0[pt_idx].map_to_addr(addr);
+        work_entry.0[pt_idx].set_flag(WRITABLE, true);
+
+        Self::invlpg(Self::PAGE_TABLE_CREATE_PAGE);
+
+        unsafe { (Self::PAGE_TABLE_CREATE_PAGE as *mut PageTable).as_mut_unchecked() }
+    }
+
     #[inline(always)]
-    fn invplg(vaddr: VirtAddr) {
+    fn invlpg(vaddr: VirtAddr) {
         unsafe {
             asm!("invlpg [{}]", in(reg) vaddr, options(nostack, preserves_flags));
         }

@@ -132,8 +132,22 @@ impl HeapMetadata {
                     return entry.allocate(len);
                 }
             }
-            // This is where long table allocation needs to happen
-            todo!()
+
+            for entry in &mut self.entries {
+                if entry.is_unallocated() {
+                    return if let Some(()) = entry.try_allocate_long_table() {
+                        entry.allocate(len)
+                    } else {
+                        None
+                    }
+                }
+            }
+
+            if let Some(next) = &mut self.next {
+                unsafe { next.as_mut() }.allocate(len)
+            } else {
+                todo!("try allocate new header here")
+            }
         }
     }
 
@@ -237,6 +251,8 @@ impl HeapMetadataEntry {
     }
 
     pub fn try_allocate_general_page(&mut self) -> Option<()> {
+        if !self.is_unallocated() { return None }
+
         let page = PageAllocator::kernel().alloc().ok()?;
         let ptr = page.leak();
 
@@ -244,6 +260,13 @@ impl HeapMetadataEntry {
         self.desc = HeapMetadataEntryType::General(HeapPageDescriptor::default());
         self.max_free_offset = 0;
         self.max_free_len = 512;
+        Some(())
+    }
+
+    pub fn try_allocate_long_table(&mut self) -> Option<()> {
+        if !self.is_unallocated() { return None }
+
+        self.desc = HeapMetadataEntryType::LongTable(HeapLongTable::default());
         Some(())
     }
 

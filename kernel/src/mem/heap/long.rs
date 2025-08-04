@@ -5,10 +5,12 @@ use crate::mem::heap::PAGE_SIZE;
 
 const LONG_TABLE_ENTRIES: usize = size_of::<HeapPageDescriptor>() / size_of::<HeapLongTableEntry>();
 
+#[derive(Default)]
 pub struct HeapLongTable {
     entries: [HeapLongTableEntry; LONG_TABLE_ENTRIES],
 }
 
+#[derive(Default)]
 pub struct HeapLongTableEntry {
     ptr: Option<NonNull<u8>>,
     pages: u32,
@@ -16,7 +18,9 @@ pub struct HeapLongTableEntry {
 }
 
 #[repr(u8)]
+#[derive(Default)]
 pub enum HeapLongTableEntryType {
+    #[default]
     Owned = 0,
     Shared(NonNull<HeapPageDescriptor>),
 }

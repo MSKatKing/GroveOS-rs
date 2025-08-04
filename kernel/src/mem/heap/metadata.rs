@@ -127,6 +127,11 @@ impl HeapMetadata {
                 todo!("try allocate new header here")
             }
         } else {
+            for entry in self.entries.iter_mut() {
+                if entry.is_long_table() && entry.can_store_alloc(len) {
+                    return entry.allocate(len);
+                }
+            }
             // This is where long table allocation needs to happen
             todo!()
         }
@@ -276,8 +281,33 @@ impl HeapMetadataEntry {
                     )
                 })
             }
-            HeapMetadataEntryType::LongTable(ref mut p) => {
-                todo!()
+            HeapMetadataEntryType::LongTable(ref mut long_table) => {
+                for entry in long_table.iter_mut() {
+                    if entry.is_free() {
+                        let num_pages = (len + 0xFFF) / PAGE_SIZE;
+                        let pages = PageAllocator::current().alloc_many(num_pages)?;
+
+                        let start_addr = pages[0].virt_addr();
+                        for page in pages {
+                            page.leak();
+                        }
+
+                        if len % PAGE_SIZE != 0 {
+                            // TODO: this should allocate as a shared table
+                        } else {
+                            entry.alloc_owned(NonNull::new(start_addr as *mut u8).expect("shouldnt be null"), num_pages as u32);
+                        }
+
+                        return Some(unsafe {
+                            core::slice::from_raw_parts_mut(
+                                start_addr as *mut u8,
+                                len
+                            )
+                        });
+                    }
+                }
+
+                None
             }
             _ => None,
         }

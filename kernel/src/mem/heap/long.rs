@@ -38,7 +38,7 @@ impl DerefMut for HeapLongTable {
 impl HeapLongTable {
     pub fn has_free_entry(&self) -> bool {
         for entry in self.entries.iter() {
-            if entry.ptr.is_none() {
+            if entry.is_free() {
                 return true;
             }
         }
@@ -54,5 +54,15 @@ impl HeapLongTableEntry {
         } else {
             false
         }
+    }
+    
+    pub fn is_free(&self) -> bool {
+        self.ptr.is_none()
+    }
+    
+    pub fn alloc_owned(&mut self, start_page: NonNull<u8>, page_count: u32) {
+        self.ptr = Some(start_page);
+        self.pages = page_count;
+        self.ty = HeapLongTableEntryType::Owned;
     }
 }

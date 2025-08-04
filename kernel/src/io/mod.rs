@@ -2,6 +2,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 mod ata;
+mod fat32;
 
 #[derive(Eq, PartialEq)]
 enum FileKind {

@@ -2,6 +2,7 @@ use crate::cpu;
 
 const ATA_PRIMARY_IO: u16 = 0x1F0;
 const ATA_REG_DATA: u16 = 0x00;
+const ATA_REG_FEATURES: u16 = 0x01;
 const ATA_REG_ERROR: u16 = 0x01;
 const ATA_REG_SECCOUNT0: u16 = 0x02;
 const ATA_REG_LBA0: u16 = 0x03;
@@ -41,11 +42,15 @@ fn ata_wait_drq() {
 pub fn ata_read_sector(lba: u32, buffer: &mut [u8]) {
     ata_wait_bsy();
 
+    cpu::outb(ATA_PRIMARY_IO + ATA_REG_HDDEVSEL, 0xE0 | ((lba >> 24) & 0x0F) as u8);
+
+    if read_error() & 0x01 != 0 { panic!("ata experienced an error: {}", read_error()); }
+
+    cpu::outb(ATA_PRIMARY_IO + ATA_REG_FEATURES, 0);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_SECCOUNT0, 1);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_LBA0, lba as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_LBA1, (lba >> 8) as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_LBA2, (lba >> 16) as u8);
-    cpu::outb(ATA_PRIMARY_IO + ATA_REG_HDDEVSEL, 0xE0 | ((lba >> 24) & 0x0F) as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
 
     ata_wait_bsy();

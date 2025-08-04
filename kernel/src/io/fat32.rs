@@ -2,6 +2,7 @@ use alloc::string::{String, ToString};
 use alloc::{format, vec};
 use alloc::vec::Vec;
 use crate::io::{File, FileKind, FileSystem};
+use crate::io::ata::{ata_read_sector, ata_read_sectors};
 
 pub struct Fat32FileSystem {
     bytes_per_sector: u16,
@@ -42,7 +43,7 @@ impl Fat32FileSystem {
     }
 
     fn cluster_to_lba(&self, cluster: u32) -> u32 {
-        self.data_start_lba + (cluster - 2) * self.sectors_per_cluster as u32;
+        self.data_start_lba + (cluster - 2) * self.sectors_per_cluster as u32
     }
 
     fn read_cluster(&self, cluster: u32) -> Vec<u8> {
@@ -96,20 +97,19 @@ impl FileSystem for Fat32FileSystem {
         let parts = path.trim_start_matches('/').split('/');
 
         for part in parts {
-            let children = self.list_dir(&current) {
-                let next = children.into_iter().find(|f| f.filename().eq_ignore_ascii_case(part));
-                if let Some(found) = next {
-                    current = found;
-                } else {
-                    return None;
-                }
+            let children = self.list_dir(&current);
+            let next = children.into_iter().find(|f| f.filename().eq_ignore_ascii_case(part));
+            if let Some(found) = next {
+                current = found;
+            } else {
+                return None;
             }
         }
 
         Some(current)
     }
 
-    fn read_file(&self, file: &mut File) -> Option<&[u8]> {
+    fn read_file<'a>(&self, file: &'a mut File) -> Option<&'a [u8]> {
         if file.kind != FileKind::File {
             return None;
         }

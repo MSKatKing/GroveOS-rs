@@ -10,16 +10,16 @@ enum FileKind {
     Directory,
 }
 
-pub struct File {
+pub struct File<'a> {
     kind: FileKind,
     path: String,
     size: u32,
     data: Option<Vec<u8>>,
-    fs: &'static dyn FileSystem,
+    fs: &'a dyn FileSystem,
     start_cluster: u32,
 }
 
-impl File {
+impl<'a> File<'a> {
     pub fn open(path: &str) -> Option<Self> {
         todo!()
     }
@@ -44,7 +44,7 @@ impl File {
 
 trait FileSystem {
     fn open(&self, path: &str) -> Option<File>;
-    fn read_file(&self, file: &mut File) -> Option<&[u8]>;
+    fn read_file<'a>(&self, file: &'a mut File) -> Option<&'a [u8]>;
     fn list_dir(&self, dir: &File) -> Vec<File>;
     fn root(&self) -> File;
 }

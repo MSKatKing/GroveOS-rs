@@ -2,6 +2,7 @@ use core::ops::{Deref, DerefMut};
 use crate::mem::heap::descriptor::HeapPageDescriptor;
 use core::ptr::NonNull;
 use crate::mem::heap::PAGE_SIZE;
+use crate::mem::page::allocator::PageAllocator;
 
 const LONG_TABLE_ENTRIES: usize = size_of::<HeapPageDescriptor>() / size_of::<HeapLongTableEntry>();
 
@@ -68,5 +69,23 @@ impl HeapLongTableEntry {
         self.ptr = Some(start_page);
         self.pages = page_count;
         self.ty = HeapLongTableEntryType::Owned;
+    }
+    
+    pub fn deallocate(&mut self) {
+        let Some(ptr) = self.ptr.take() else { return };
+        
+        match self.ty {
+            HeapLongTableEntryType::Owned => {
+                for page in 0..self.pages {
+                    unsafe { PageAllocator::current().dealloc_raw((ptr.addr().get() + page as usize * PAGE_SIZE) as u64) }
+                }
+            },
+            HeapLongTableEntryType::Shared(ptr) => {
+                todo!()
+            }
+        }
+        
+        self.pages = 0;
+        self.ty = HeapLongTableEntryType::default();
     }
 }

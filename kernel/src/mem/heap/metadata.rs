@@ -342,7 +342,14 @@ impl HeapMetadataEntry {
                 inner.set_free(ptr_to_offset!(ptr));
                 self.update_max_free();
             }
-            _ => todo!(),
+            HeapMetadataEntryType::LongTable(ref mut long_table) => {
+                for entry in long_table.iter_mut() {
+                    if entry.contains_ptr(ptr.as_ptr()) {
+                        entry.deallocate()
+                    }
+                }
+            }
+            _ => { },
         }
     }
 

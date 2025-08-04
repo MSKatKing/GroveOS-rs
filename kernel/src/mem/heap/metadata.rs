@@ -315,11 +315,12 @@ impl HeapMetadataEntry {
                             page.leak();
                         }
 
-                        if len % PAGE_SIZE != 0 {
-                            // TODO: this should allocate as a shared table
-                        } else {
-                            entry.alloc_owned(NonNull::new(start_addr as *mut u8).expect("shouldnt be null"), num_pages as u32);
-                        }
+                        entry.alloc_owned(NonNull::new(start_addr as *mut u8).expect("shouldnt be null"), num_pages as u32);
+                        // if len % PAGE_SIZE != 0 {
+                        //     // TODO: this should allocate as a shared table
+                        // } else {
+                        //
+                        // }
 
                         return Some(unsafe {
                             core::slice::from_raw_parts_mut(
@@ -375,6 +376,19 @@ impl HeapMetadataEntry {
                 } else {
                     Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len * 8) })
                 }
+            },
+            HeapMetadataEntryType::LongTable(ref mut long_table) => {
+                for entry in long_table.iter_mut() {
+                    if entry.contains_ptr(ptr.as_ptr()) {
+                        let ptr = entry.reallocate(len)?;
+
+                        return Some(unsafe {
+                            core::slice::from_raw_parts_mut(ptr.as_ptr(), len)
+                        })
+                    }
+                }
+
+                None
             }
             _ => todo!(),
         }

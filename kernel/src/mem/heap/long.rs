@@ -70,10 +70,10 @@ impl HeapLongTableEntry {
         self.pages = page_count;
         self.ty = HeapLongTableEntryType::Owned;
     }
-    
+
     pub fn deallocate(&mut self) {
         let Some(ptr) = self.ptr.take() else { return };
-        
+
         match self.ty {
             HeapLongTableEntryType::Owned => {
                 for page in 0..self.pages {
@@ -84,8 +84,38 @@ impl HeapLongTableEntry {
                 todo!()
             }
         }
-        
+
         self.pages = 0;
         self.ty = HeapLongTableEntryType::default();
+    }
+
+    pub fn reallocate(&mut self, new_len: usize) -> Option<NonNull<u8>> {
+        match self.ty {
+            HeapLongTableEntryType::Owned => {
+                let num_pages = (new_len + 0xFFF) / PAGE_SIZE;
+                if num_pages == self.pages as usize {
+                    return Some(self.ptr?);
+                }
+
+                let pages = PageAllocator::current().alloc_many(num_pages)?;
+
+                let start_addr = pages[0].virt_addr();
+                for page in pages {
+                    page.leak();
+                }
+
+                if let Some(ptr) = self.ptr {
+                    let out = unsafe { core::slice::from_raw_parts_mut(start_addr as *mut u8, num_pages * PAGE_SIZE) };
+                    let old = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), self.pages as usize * PAGE_SIZE) };
+
+                    out.copy_from_slice(old)
+                }
+
+                Some(NonNull::new(start_addr as *mut u8)?)
+            },
+            HeapLongTableEntryType::Shared(ptr) => {
+                todo!()
+            }
+        }
     }
 }

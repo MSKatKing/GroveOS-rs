@@ -18,34 +18,46 @@ fn read_status() -> u8 {
     cpu::inb(ATA_PRIMARY_IO + ATA_REG_STATUS)
 }
 
+fn read_error() -> u8 {
+    cpu::inb(ATA_PRIMARY_IO + ATA_REG_ERROR)
+}
+
 fn ata_wait_bsy() {
-    while read_status() & ATA_SR_BSY != 0 { }
+    while {
+        let status = read_status();
+        if status & 0x01 != 0 { panic!("ata experienced an error: {}", read_error()); }
+        status & ATA_SR_BSY != 0
+    } { }
 }
 
 fn ata_wait_drq() {
-    while read_status() & ATA_SR_DRQ != 0 { }
+    while {
+        let status = read_status();
+        if status & 0x01 != 0 { panic!("ata experienced an error: {}", read_error()); }
+        status & ATA_SR_DRQ != 0
+    } { }
 }
 
 pub fn ata_read_sector(lba: u32, buffer: &mut [u8]) {
     ata_wait_bsy();
-    
+
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_SECCOUNT0, 1);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_LBA0, lba as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_LBA1, (lba >> 8) as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_LBA2, (lba >> 16) as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_HDDEVSEL, 0xE0 | ((lba >> 24) & 0x0F) as u8);
     cpu::outb(ATA_PRIMARY_IO + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
-    
+
     ata_wait_bsy();
     ata_wait_drq();
-    
+
     let buffer = buffer.as_mut_ptr().cast::<u16>();
     for i in 0..256 {
         unsafe {
             core::ptr::write(buffer.add(i), cpu::inw(ATA_PRIMARY_IO + ATA_REG_DATA));
         }
     }
-    
+
     cpu::io_wait();
 }
 

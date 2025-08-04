@@ -178,7 +178,11 @@ macro_rules! ptr_to_offset {
 
 impl HeapMetadataEntry {
     pub fn can_store_alloc(&self, len: usize) -> bool {
-        self.max_free_len >= len as u16
+        match &self.desc {
+            HeapMetadataEntryType::Unallocated => false,
+            HeapMetadataEntryType::General(_) => self.max_free_len >= len as u16,
+            HeapMetadataEntryType::LongTable(long_table) => long_table.has_free_entry(),
+        }
     }
 
     pub fn is_unallocated(&self) -> bool {
@@ -195,15 +199,36 @@ impl HeapMetadataEntry {
         }
     }
 
-    pub fn contains_ptr(&self, ptr: *const u8) -> bool {
-        let ptr = ptr as u64 & !0xFFF;
-        let Some(page_ptr) = self.page else {
-            return false;
-        };
-        let page_ptr = page_ptr.as_ptr();
-        let page_ptr = page_ptr as u64 & !0xFFF;
+    pub fn is_long_table(&self) -> bool {
+        match self.desc {
+            HeapMetadataEntryType::LongTable(_) => true,
+            _ => false,
+        }
+    }
 
-        ptr == page_ptr
+    pub fn contains_ptr(&self, ptr: *const u8) -> bool {
+        match &self.desc {
+            HeapMetadataEntryType::Unallocated => false,
+            HeapMetadataEntryType::General(_) => {
+                let ptr = ptr as u64 & !0xFFF;
+                let Some(page_ptr) = self.page else {
+                    return false;
+                };
+                let page_ptr = page_ptr.as_ptr();
+                let page_ptr = page_ptr as u64 & !0xFFF;
+
+                ptr == page_ptr
+            }
+            HeapMetadataEntryType::LongTable(entries) => {
+                for entry in entries.iter() {
+                    if entry.contains_ptr(ptr) {
+                        return true;
+                    }
+                }
+
+                false
+            }
+        }
     }
 
     pub fn try_allocate_general_page(&mut self) -> Option<()> {

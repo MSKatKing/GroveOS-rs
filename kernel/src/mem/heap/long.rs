@@ -1,9 +1,7 @@
-use core::ptr::NonNull;
 use crate::mem::heap::metadata::HeapMetadataEntryType;
+use core::ptr::NonNull;
 
-pub struct HeapLongTable {
-    
-}
+pub struct HeapLongTable {}
 
 pub struct HeapLongTableEntry {
     ptr: Option<NonNull<u8>>,

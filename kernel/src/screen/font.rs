@@ -22,7 +22,7 @@ impl PSFFont {
                 | ((bytes[offset + 2] as u32) << 16)
                 | ((bytes[offset + 3] as u32) << 24)
         }
-        
+
         let magic = read_u32_le(bytes, 0);
         let version = read_u32_le(bytes, 4);
         let header_size = read_u32_le(bytes, 8);
@@ -31,7 +31,7 @@ impl PSFFont {
         let bytes_per_glyph = read_u32_le(bytes, 20);
         let height = read_u32_le(bytes, 24);
         let width = read_u32_le(bytes, 28);
-        
+
         Self {
             magic,
             version,
@@ -44,21 +44,21 @@ impl PSFFont {
             file: bytes,
         }
     }
-    
+
     pub fn get_char(&self, c: char) -> &[u8] {
         let index = c as usize;
-        
+
         if index >= self.num_glyphs as usize {
             return self.get_char('?');
         }
-        
+
         let start = index * self.bytes_per_glyph as usize;
         let end = start + self.bytes_per_glyph as usize;
-        
+
         if (end + self.header_size as usize) > self.file.len() {
             return self.get_char('?');
         }
-        
+
         &self.file[(start + self.header_size as usize)..(end + self.header_size as usize)]
     }
 }

@@ -1,6 +1,6 @@
-use core::fmt::Write;
-use crate::screen::font::{PSFFont, KERNEL_FONT};
 use crate::UEFIBootInfo;
+use crate::screen::font::{KERNEL_FONT, PSFFont};
+use core::fmt::Write;
 
 mod font;
 
@@ -30,9 +30,8 @@ impl FramebufferWriter {
 impl From<&UEFIBootInfo> for FramebufferWriter {
     fn from(value: &UEFIBootInfo) -> Self {
         // SAFETY: this is okay because we know the base framebuffer pointer and the framebuffer size
-        let framebuffer = unsafe {
-            core::slice::from_raw_parts_mut(value.framebuffer, value.framebuffer_size)
-        };
+        let framebuffer =
+            unsafe { core::slice::from_raw_parts_mut(value.framebuffer, value.framebuffer_size) };
 
         Self {
             framebuffer,
@@ -50,13 +49,24 @@ impl From<&UEFIBootInfo> for FramebufferWriter {
 }
 
 impl Write for FramebufferWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for c in s.chars() {
+            match c {
+                '\n' => {
+                    self.cursor_x = 0;
+                    self.cursor_y += self.curr_font.height as usize;
+                }
+                _ => self.write_char(c)?,
+            }
+        }
+
+        Ok(())
+    }
+
     fn write_char(&mut self, c: char) -> core::fmt::Result {
         let glyph = self.curr_font.get_char(c);
         let glyph_width = self.curr_font.width as usize;
         let glyph_height = self.curr_font.height as usize;
-
-        let x_offset = self.cursor_x;
-        let y_offset = self.cursor_y;
 
         let bytes_per_row = (self.curr_font.width as usize + 7) / 8;
 
@@ -93,25 +103,11 @@ impl Write for FramebufferWriter {
             self.cursor_x = 0;
             self.cursor_y += glyph_height;
         }
-        
+
         if self.cursor_y >= self.height {
             self.clear();
             self.cursor_y = 0;
             self.cursor_x = 0;
-        }
-
-        Ok(())
-    }
-
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for c in s.chars() {
-            match c {
-                '\n' => {
-                    self.cursor_x = 0;
-                    self.cursor_y += self.curr_font.height as usize;
-                }
-                _ => self.write_char(c)?
-            }
         }
 
         Ok(())
@@ -122,9 +118,7 @@ static mut FRAMEBUFFER_WRITER: Option<FramebufferWriter> = None;
 
 pub fn init_writer(writer: FramebufferWriter) {
     // SAFETY: for now, our os is single-threaded, so using a global writer is fine
-    unsafe {
-        FRAMEBUFFER_WRITER = Some(writer)
-    }
+    unsafe { FRAMEBUFFER_WRITER = Some(writer) }
 }
 
 pub fn framebuffer_writer() -> &'static mut FramebufferWriter {

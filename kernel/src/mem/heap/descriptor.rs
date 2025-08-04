@@ -65,7 +65,7 @@ impl HeapPageDescriptor {
         }
         self.set_type(offset, HeapPageDescriptorTag::Free);
     }
-    
+
     pub fn get_allocation_size(&mut self, mut offset: usize) -> usize {
         let mut len = 1;
         while self.get_type(offset) != HeapPageDescriptorTag::End {
@@ -74,20 +74,20 @@ impl HeapPageDescriptor {
         }
         len
     }
-    
+
     pub fn try_expand_allocation(&mut self, offset: usize, new_len: usize) -> bool {
         let old_len = self.get_allocation_size(offset);
-        
+
         for i in (offset + old_len)..(offset + new_len) {
             if self.get_type(i) != HeapPageDescriptorTag::Free {
                 return false;
             }
         }
-        
+
         self.set_used(offset, new_len);
         true
     }
-    
+
     pub fn shrink_allocation(&mut self, offset: usize, new_len: usize) {
         self.set_used(offset + new_len - 1, 1);
         self.set_free(offset + new_len);
@@ -102,24 +102,27 @@ impl HeapPageDescriptor {
 
         for i in 0usize..512 {
             match self.get_type(i) {
-                HeapPageDescriptorTag::Free => if curr_offset == -1 {
-                    curr_offset = i as i16;
-                    curr_len = 1;
-                } else {
-                    curr_len += 1;
-                },
-                _ => if curr_offset > 0 {
-                    if curr_len > max_free_len {
-                        max_free_offset = curr_offset as u16;
-                        max_free_len = curr_len;
+                HeapPageDescriptorTag::Free => {
+                    if curr_offset == -1 {
+                        curr_offset = i as i16;
+                        curr_len = 1;
+                    } else {
+                        curr_len += 1;
                     }
+                }
+                _ => {
+                    if curr_offset > 0 {
+                        if curr_len > max_free_len {
+                            max_free_offset = curr_offset as u16;
+                            max_free_len = curr_len;
+                        }
 
-                    curr_offset = -1;
+                        curr_offset = -1;
+                    }
                 }
             }
         }
 
-        
         if curr_len > max_free_len {
             (curr_offset as u16, curr_len)
         } else {
@@ -133,7 +136,7 @@ impl Debug for HeapPageDescriptor {
         for i in 0..512 {
             write!(f, "{:?}, ", self.get_type(i))?;
         }
-        
+
         Ok(())
     }
 }

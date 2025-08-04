@@ -22,7 +22,7 @@ impl GDTEntry {
             base_high: 0,
         }
     }
-    
+
     pub fn new(base: u32, limit: u32, access: u8, granularity: u8) -> Self {
         Self {
             limit: limit as _,
@@ -59,7 +59,7 @@ pub extern "C" fn lgdt() {
         limit: GDT_ENTRIES as u16 * size_of::<GDTEntry>() as u16 - 1,
         base: 0,
     };
-    
+
     #[unsafe(no_mangle)]
     fn lgdt_inner() {
         unsafe {

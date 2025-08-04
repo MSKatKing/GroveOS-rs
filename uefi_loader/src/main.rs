@@ -100,6 +100,10 @@ fn main() -> Status {
 
     info!("Finished mapping kernel! Entry @ {:x}", elf.entry);
     
+    map_static(pml4);
+    
+    info!("PML4 formatted for kernel.");
+    
     for i in 0..(((framebuffer.len() * size_of::<u32>()) + 0x1000 - 1) / 0x1000) as u64 {
         map_page(pml4, framebuffer.as_ptr() as u64 + i * 0x1000, framebuffer.as_ptr() as u64 + i * 0x1000, PAGE_WRITE);
     }
@@ -202,9 +206,7 @@ fn allocate_table() -> &'static mut PageTable {
     
     // SAFETY: allocate_pages returns a valid pointer, so dereferencing it is okay
     let out = unsafe { &mut *addr };
-    for i in 0..512 {
-        out.entries[i] = 0;
-    }
+    out.entries.fill(0);
 
     out
 }
@@ -230,6 +232,20 @@ fn map_page(pml4: &mut PageTable, virt: u64, phys: u64, flags: u64) {
     let pt =  unsafe { get_or_allocate_table(pd, page_table_index!(virt, 1), flags | PAGE_PRESENT) };
 
     pt.entries[page_table_index!(virt, 0)] = (phys & !0xFFF) | PAGE_PRESENT | flags;
+}
+
+fn map_static(pml4: &mut PageTable) {
+    const PML4_VIRT: u64 = 0xFFFF_FDFF_FFFF_D000;
+    const VIRT: u64 = 0xFFFF_FDFF_FFFF_E000;
+
+    let pdpt = unsafe { get_or_allocate_table(pml4, page_table_index!(VIRT, 3), PAGE_WRITE | PAGE_PRESENT) };
+    let pd = unsafe { get_or_allocate_table(pdpt, page_table_index!(VIRT, 2), PAGE_WRITE | PAGE_PRESENT) };
+    let pt =  unsafe { get_or_allocate_table(pd, page_table_index!(VIRT, 1), PAGE_WRITE | PAGE_PRESENT) };
+    
+    let phys = pt as *const PageTable as u64;
+
+    pt.entries[page_table_index!(PML4_VIRT, 0)] = ((pml4 as *const PageTable as u64) & !0xFFF) | PAGE_PRESENT | PAGE_WRITE;
+    pt.entries[page_table_index!(VIRT, 0)] = (phys & !0xFFF) | PAGE_PRESENT | PAGE_WRITE;
 }
 
 #[repr(C)]

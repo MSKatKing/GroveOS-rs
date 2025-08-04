@@ -4,6 +4,8 @@ use alloc::vec::Vec;
 mod ata;
 mod fat32;
 
+pub use fat32::Fat32FileSystem;
+
 #[derive(Eq, PartialEq)]
 enum FileKind {
     File,
@@ -20,29 +22,33 @@ pub struct File<'a> {
 }
 
 impl<'a> File<'a> {
-    pub fn open(path: &str) -> Option<Self> {
-        todo!()
+    pub fn open<'fs: 'a>(fs: &'fs dyn FileSystem, path: &str) -> Option<Self> {
+        fs.open(path)
     }
-    
+
     pub fn read(&mut self) -> &[u8] {
-        todo!()
+        if self.data.is_none() {
+            self.fs.read_file(self).expect("failed to read file");
+        }
+
+        self.data.as_ref().unwrap()
     }
-    
+
     pub fn list_children(&self) -> Vec<File> {
-        todo!()
+        self.fs.list_dir(self)
     }
-    
+
     pub fn is_directory(&self) -> bool {
         self.kind == FileKind::Directory
     }
-    
+
     pub fn filename(&self) -> &str {
         let trimmed = self.path.trim_end_matches('/');
         trimmed.rsplit('/').next().unwrap_or("")
     }
 }
 
-trait FileSystem {
+pub trait FileSystem {
     fn open(&self, path: &str) -> Option<File>;
     fn read_file<'a>(&self, file: &'a mut File) -> Option<&'a [u8]>;
     fn list_dir(&self, dir: &File) -> Vec<File>;

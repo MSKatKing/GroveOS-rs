@@ -18,6 +18,7 @@ use crate::mem::paging::PageTable;
 use crate::screen::{framebuffer_writer, init_writer, FramebufferWriter};
 use core::arch::asm;
 use core::panic::PanicInfo;
+use crate::io::{Fat32FileSystem, File};
 use crate::mem::heap::metadata::HeapMetadata;
 
 unsafe extern "C" {
@@ -113,6 +114,11 @@ pub extern "C" fn _start() -> ! {
     println!("test: {:?}", test);
 
     println!("{:?}", unsafe { HeapMetadata::kernel() }[0]);
+    
+    let fs = Fat32FileSystem::new();
+    let file = File::open(&fs, "/shell");
+    
+    println!("file found: {:?}", file.is_some());
     
     loop {
         unsafe {

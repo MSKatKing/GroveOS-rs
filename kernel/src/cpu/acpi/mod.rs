@@ -1,11 +1,14 @@
 mod mcfg;
 mod bgrt;
+pub mod apic;
 
-use core::ptr;
+use crate::cpu::acpi::apic::APIC_SYSTEM;
+use crate::mem::heap::PAGE_SIZE;
 use crate::mem::page::page_table::PageTable;
 use crate::mem::page::VirtAddr;
-use crate::{print, println};
-use crate::mem::heap::PAGE_SIZE;
+use crate::println;
+use alloc::vec::Vec;
+use core::ptr;
 
 #[repr(C, packed)]
 pub struct Rsdp {
@@ -59,6 +62,11 @@ impl AcpiSdtHeader {
 }
 
 pub unsafe fn parse_rsdp(rsdp_ptr: *const Rsdp) {
+    #[allow(static_mut_refs)]
+    for system in unsafe { &mut ACPI_SYSTEMS } {
+        system.preinit()
+    }
+
     unsafe {
         let rsdp = &*rsdp_ptr;
 
@@ -72,32 +80,19 @@ pub unsafe fn parse_rsdp(rsdp_ptr: *const Rsdp) {
             return;
         }
 
-        println!("RSDP Signature: {}", sig);
-        println!("OEM ID: {}", core::str::from_utf8(&rsdp.oem_id).unwrap_or("Invalid OEM ID"));
-        println!("Revision: {}", rsdp.revision);
-
         if rsdp.revision >= 2 && rsdp.length as usize >= size_of::<Rsdp>() {
             let a = rsdp.xsdt_address;
-            println!("XSDT Address: {:#x}", a);
 
             PageTable::current().map_addr(a, a, 0).expect("failed to map xsdt");
 
             parse_xsdt(rsdp.xsdt_address as *const AcpiSdtHeader);
         }
     }
-}
 
-pub unsafe fn parse_rsdt(rsdt_ptr: *const AcpiSdtHeader) {
-    unsafe {
-        let header = &*rsdt_ptr;
-        let entries = (header.length as usize - size_of::<AcpiSdtHeader>()) / 4;
-        println!("RSDT with {} entries", entries);
-
-        let entry_ptr = (rsdt_ptr as *const u8).add(size_of::<AcpiSdtHeader>());
-
-        for i in 0..entries {
-            let table_addr = *entry_ptr.add(i) as *const AcpiSdtHeader;
-            print_acpi_table(table_addr);
+    #[allow(static_mut_refs)]
+    for system in unsafe { &mut ACPI_SYSTEMS } {
+        if !system.loaded() {
+            println!("Couldn't load system for ACPI table {}", system.targeted_table());
         }
     }
 }
@@ -112,27 +107,20 @@ pub unsafe fn parse_xsdt(xsdt_ptr: *const AcpiSdtHeader) {
         }
 
         if !header.is_checksum_valid() {
-            println!("Failed to parse XSDT! Incorrect checksum!");
             return;
         }
 
         let entry_count = (header.length as usize - size_of::<AcpiSdtHeader>()) / 8;
         let entry_ptr = xsdt_ptr.cast::<u8>().offset(size_of::<AcpiSdtHeader>() as isize).cast::<u64>();
 
-        println!("XSDT with {} entries @ {:#x}", entry_count, entry_ptr as usize);
-
         PageTable::current().map_addr(entry_ptr as VirtAddr, entry_ptr as VirtAddr, 0).expect("failed to map xsdt entry");
 
         for i in 0..entry_count {
             let entry = ptr::read_unaligned(entry_ptr.offset(i as isize)) as *const AcpiSdtHeader;
-            print!("Entry {}", i);
 
             if entry.is_null() {
-                println!(": Empty");
                 continue;
             }
-
-            print!(" @ {:#x}: ", entry as usize);
 
             PageTable::current().map_addr(entry as VirtAddr, entry as VirtAddr, 0).expect("failed to map xsdt entry");
             PageTable::current().map_addr(entry as VirtAddr + size_of::<AcpiSdtHeader>() as VirtAddr, entry as VirtAddr + size_of::<AcpiSdtHeader>() as VirtAddr, 0).expect("failed to map xsdt entry");
@@ -153,37 +141,40 @@ pub unsafe fn print_acpi_table(table_ptr: *const AcpiSdtHeader) {
         }
 
         if !header.is_checksum_valid() {
-            println!("Cannot parse ACPI table: the checksum is invalid!");
             return;
         }
 
         let sig = core::str::from_utf8(&header.signature).unwrap_or("ERR ");
-        let a = header.length;
-        let b = header.revision;
 
-        println!(
-            "Table: {} Length: {} Revision: {}",
-            sig,
-            a,
-            b
-        );
-
-        if sig == "MCFG" {
-            if let Some(allocs) = mcfg::parse_mcfg_table(header) {
-                // for alloc in allocs {
-                //     for header in alloc.iter() {
-                //         let header = &*header;
-                // 
-                //         if header.vendor_id == 0xFFFF {
-                //             continue;
-                //         }
-                // 
-                //         println!("MCFG Header @ {:#x}: {:?}", header as *const _ as usize, header)
-                //     }
-                // }
+        #[allow(static_mut_refs)]
+        for system in &mut ACPI_SYSTEMS {
+            if sig == system.targeted_table() {
+                match system.init(header) {
+                    Ok(()) => {},
+                    Err(msg) => println!("An error occurred while initializing an ACPI system for table {}: {}", sig, msg),
+                }
             }
-        } else if sig == "BGRT" {
-            bgrt::draw_img(header)
         }
     }
+}
+
+pub trait AcpiInitializable: Send + Sync {
+    fn preinit(&mut self);
+    fn init(&mut self, header: &AcpiSdtHeader) -> Result<(), &'static str>;
+    fn targeted_table(&self) -> &'static str;
+    fn loaded(&self) -> bool;
+}
+
+static mut ACPI_SYSTEMS: Vec<&'static mut dyn AcpiInitializable> = Vec::new();
+
+pub fn register_acpi_system(system: &'static mut dyn AcpiInitializable) {
+    #[allow(static_mut_refs)]
+    unsafe {
+        ACPI_SYSTEMS.push(system);
+    }
+}
+
+pub fn register_default_systems() {
+    #[allow(static_mut_refs)]
+    register_acpi_system(unsafe { &mut APIC_SYSTEM });
 }

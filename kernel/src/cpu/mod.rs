@@ -83,32 +83,13 @@ pub fn cpu_vendor_string() -> &'static str {
 }
 
 pub fn get_num_logical_processors() -> u32 {
-    match *CPU_VENDOR {
-        CPUVendor::Intel => {
-            let mut logical_processors = 0;
-            let mut level = 0;
-            loop {
-                let (_, ebx, ecx, _) = cpuid(0x0B, level);
-                if (ecx & 0xFF) == 0 {
-                    break;
-                }
-                if (ecx & 0xFF) == 1 {
-                    logical_processors = ebx & 0xFFFF;
-                    break;
-                }
-                level += 1;
-            }
-            if logical_processors == 0 {
-                let (_, ebx, _, _) = cpuid(1, 0);
-                (ebx >> 16) & 0xFF
-            } else {
-                logical_processors
-            }
-        },
-        CPUVendor::AMD | CPUVendor::Other(_) => {
-            let (_, ebx, _, _) = cpuid(1, 0);
-            (ebx >> 16) & 0xFF
-        },
+    unsafe {
+        #[allow(static_mut_refs)]
+        if acpi::apic::APIC_SYSTEM.loaded {
+            acpi::apic::APIC_SYSTEM.processor_apics.len() as u32
+        } else {
+            0
+        }
     }
 }
 

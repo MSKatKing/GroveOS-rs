@@ -77,11 +77,13 @@ pub extern "C" fn _start() -> ! {
 
     // Point where all heap functions can be used.
 
-    cpu::print_cpu_info();
-    
+    cpu::acpi::register_default_systems();
+
     unsafe {
         cpu::acpi::parse_rsdp(boot_info.acpi_rsdp as *const Rsdp);
     }
+
+    cpu::print_cpu_info();
 
     loop {
         unsafe {

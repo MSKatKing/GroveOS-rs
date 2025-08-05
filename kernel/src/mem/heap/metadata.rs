@@ -127,8 +127,27 @@ impl HeapMetadata {
                 todo!("try allocate new header here")
             }
         } else {
-            // This is where long table allocation needs to happen
-            todo!()
+            for entry in self.entries.iter_mut() {
+                if entry.is_long_table() && entry.can_store_alloc(len) {
+                    return entry.allocate(len);
+                }
+            }
+
+            for entry in &mut self.entries {
+                if entry.is_unallocated() {
+                    return if let Some(()) = entry.try_allocate_long_table() {
+                        entry.allocate(len)
+                    } else {
+                        None
+                    }
+                }
+            }
+
+            if let Some(next) = &mut self.next {
+                unsafe { next.as_mut() }.allocate(len)
+            } else {
+                todo!("try allocate new header here")
+            }
         }
     }
 
@@ -178,7 +197,11 @@ macro_rules! ptr_to_offset {
 
 impl HeapMetadataEntry {
     pub fn can_store_alloc(&self, len: usize) -> bool {
-        self.max_free_len >= len as u16
+        match &self.desc {
+            HeapMetadataEntryType::Unallocated => false,
+            HeapMetadataEntryType::General(_) => self.max_free_len >= len as u16,
+            HeapMetadataEntryType::LongTable(long_table) => long_table.has_free_entry(),
+        }
     }
 
     pub fn is_unallocated(&self) -> bool {
@@ -195,18 +218,41 @@ impl HeapMetadataEntry {
         }
     }
 
-    pub fn contains_ptr(&self, ptr: *const u8) -> bool {
-        let ptr = ptr as u64 & !0xFFF;
-        let Some(page_ptr) = self.page else {
-            return false;
-        };
-        let page_ptr = page_ptr.as_ptr();
-        let page_ptr = page_ptr as u64 & !0xFFF;
+    pub fn is_long_table(&self) -> bool {
+        match self.desc {
+            HeapMetadataEntryType::LongTable(_) => true,
+            _ => false,
+        }
+    }
 
-        ptr == page_ptr
+    pub fn contains_ptr(&self, ptr: *const u8) -> bool {
+        match &self.desc {
+            HeapMetadataEntryType::Unallocated => false,
+            HeapMetadataEntryType::General(_) => {
+                let ptr = ptr as u64 & !0xFFF;
+                let Some(page_ptr) = self.page else {
+                    return false;
+                };
+                let page_ptr = page_ptr.as_ptr();
+                let page_ptr = page_ptr as u64 & !0xFFF;
+
+                ptr == page_ptr
+            }
+            HeapMetadataEntryType::LongTable(entries) => {
+                for entry in entries.iter() {
+                    if entry.contains_ptr(ptr) {
+                        return true;
+                    }
+                }
+
+                false
+            }
+        }
     }
 
     pub fn try_allocate_general_page(&mut self) -> Option<()> {
+        if !self.is_unallocated() { return None }
+
         let page = PageAllocator::kernel().alloc().ok()?;
         let ptr = page.leak();
 
@@ -214,6 +260,13 @@ impl HeapMetadataEntry {
         self.desc = HeapMetadataEntryType::General(HeapPageDescriptor::default());
         self.max_free_offset = 0;
         self.max_free_len = 512;
+        Some(())
+    }
+
+    pub fn try_allocate_long_table(&mut self) -> Option<()> {
+        if !self.is_unallocated() { return None }
+
+        self.desc = HeapMetadataEntryType::LongTable(HeapLongTable::default());
         Some(())
     }
 
@@ -251,8 +304,34 @@ impl HeapMetadataEntry {
                     )
                 })
             }
-            HeapMetadataEntryType::LongTable(ref mut p) => {
-                todo!()
+            HeapMetadataEntryType::LongTable(ref mut long_table) => {
+                for entry in long_table.iter_mut() {
+                    if entry.is_free() {
+                        let num_pages = (len + 0xFFF) / PAGE_SIZE;
+                        let pages = PageAllocator::current().alloc_many(num_pages)?;
+
+                        let start_addr = pages[0].virt_addr();
+                        for page in pages {
+                            page.leak();
+                        }
+
+                        entry.alloc_owned(NonNull::new(start_addr as *mut u8).expect("shouldnt be null"), num_pages as u32);
+                        // if len % PAGE_SIZE != 0 {
+                        //     // TODO: this should allocate as a shared table
+                        // } else {
+                        //
+                        // }
+
+                        return Some(unsafe {
+                            core::slice::from_raw_parts_mut(
+                                start_addr as *mut u8,
+                                len
+                            )
+                        });
+                    }
+                }
+
+                None
             }
             _ => None,
         }
@@ -264,7 +343,14 @@ impl HeapMetadataEntry {
                 inner.set_free(ptr_to_offset!(ptr));
                 self.update_max_free();
             }
-            _ => todo!(),
+            HeapMetadataEntryType::LongTable(ref mut long_table) => {
+                for entry in long_table.iter_mut() {
+                    if entry.contains_ptr(ptr.as_ptr()) {
+                        entry.deallocate()
+                    }
+                }
+            }
+            _ => { },
         }
     }
 
@@ -290,6 +376,19 @@ impl HeapMetadataEntry {
                 } else {
                     Some(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), len * 8) })
                 }
+            },
+            HeapMetadataEntryType::LongTable(ref mut long_table) => {
+                for entry in long_table.iter_mut() {
+                    if entry.contains_ptr(ptr.as_ptr()) {
+                        let ptr = entry.reallocate(len)?;
+
+                        return Some(unsafe {
+                            core::slice::from_raw_parts_mut(ptr.as_ptr(), len)
+                        })
+                    }
+                }
+
+                None
             }
             _ => todo!(),
         }

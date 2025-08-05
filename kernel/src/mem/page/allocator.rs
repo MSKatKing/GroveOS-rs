@@ -88,7 +88,73 @@ impl PageAllocator {
     }
 
     pub fn alloc_many(&mut self, count: usize) -> Option<Vec<Page>> {
-        todo!()
+        if !self.pml4.is_mapped(self.get_next_addr()) {
+            let mut fits = true;
+            for i in 1..count {
+                if self.pml4.is_mapped(self.get_next_addr() + (i * PAGE_SIZE) as VirtAddr) {
+                    fits = false;
+                }
+            }
+
+            if fits {
+                let virt = self.get_next_addr();
+
+                self.virt_ptr = self
+                    .virt_ptr
+                    .checked_add(count as u64)
+                    .unwrap_or(NonZeroU64::new(1).expect("not zero"));
+
+                let mut pages = Vec::with_capacity(count);
+                for i in 0..count {
+                    let phys = PhysicalPageAllocator::get().alloc().ok()?;
+                    self.pml4.map_addr(virt + (i * PAGE_SIZE) as VirtAddr, phys, WRITABLE).ok()?;
+
+                    let self_ptr = self as *mut _ as usize;
+                    let self_ptr = unsafe { (self_ptr as *mut PageAllocator).as_mut() }.unwrap();
+
+                    pages.push(Page {
+                        addr: virt + (i * PAGE_SIZE) as VirtAddr,
+                        allocator: self_ptr
+                    })
+                }
+
+                return Some(pages);
+            }
+        }
+
+        for mut idx in self.virt_ptr.get() + 1..Self::MAX_VIRT_PAGE {
+            if !self.pml4.is_mapped(idx * PAGE_SIZE as u64) {
+                let virt = idx * PAGE_SIZE as u64;
+                let mut fits = true;
+                for i in 1..count {
+                    if self.pml4.is_mapped(virt + (i * PAGE_SIZE) as VirtAddr) {
+                        fits = false;
+                    }
+                }
+
+                if fits {
+                    self.virt_ptr = NonZeroU64::new(idx + 1).expect("should not be zero");
+
+                    let mut pages = Vec::with_capacity(count);
+                    for i in 0..count {
+                        let phys = PhysicalPageAllocator::get().alloc().ok()?;
+                        self.pml4.map_addr(virt + (i * PAGE_SIZE) as VirtAddr, phys, WRITABLE).ok()?;
+
+                        let self_ptr = self as *mut _ as usize;
+                        let self_ptr = unsafe { (self_ptr as *mut PageAllocator).as_mut() }.unwrap();
+
+                        pages.push(Page {
+                            addr: virt + (i * PAGE_SIZE) as VirtAddr,
+                            allocator: self_ptr,
+                        })
+                    }
+
+                    return Some(pages);
+                }
+            }
+        }
+
+        None
     }
 
     pub fn alloc_at(&mut self, ptr: VirtAddr) -> Option<Page> {

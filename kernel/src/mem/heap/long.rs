@@ -1,16 +1,121 @@
-use crate::mem::heap::metadata::HeapMetadataEntryType;
+use core::ops::{Deref, DerefMut};
+use crate::mem::heap::descriptor::HeapPageDescriptor;
 use core::ptr::NonNull;
+use crate::mem::heap::PAGE_SIZE;
+use crate::mem::page::allocator::PageAllocator;
 
-pub struct HeapLongTable {}
+const LONG_TABLE_ENTRIES: usize = size_of::<HeapPageDescriptor>() / size_of::<HeapLongTableEntry>();
 
+#[derive(Default)]
+pub struct HeapLongTable {
+    entries: [HeapLongTableEntry; LONG_TABLE_ENTRIES],
+}
+
+#[derive(Default)]
 pub struct HeapLongTableEntry {
     ptr: Option<NonNull<u8>>,
     pages: u32,
-    ty: HeapMetadataEntryType,
+    ty: HeapLongTableEntryType,
 }
 
 #[repr(u8)]
+#[derive(Default)]
 pub enum HeapLongTableEntryType {
+    #[default]
     Owned = 0,
-    Shared = 1,
+    Shared(NonNull<HeapPageDescriptor>),
+}
+
+impl Deref for HeapLongTable {
+    type Target = [HeapLongTableEntry; LONG_TABLE_ENTRIES];
+
+    fn deref(&self) -> &Self::Target {
+        &self.entries
+    }
+}
+
+impl DerefMut for HeapLongTable {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entries
+    }
+}
+
+impl HeapLongTable {
+    pub fn has_free_entry(&self) -> bool {
+        for entry in self.entries.iter() {
+            if entry.is_free() {
+                return true;
+            }
+        }
+        
+        false
+    }
+}
+
+impl HeapLongTableEntry {
+    pub fn contains_ptr(&self, ptr: *const u8) -> bool {
+        if let Some(page) = self.ptr {
+            page.addr().get() <= ptr as usize && page.addr().get() + PAGE_SIZE < ptr as usize
+        } else {
+            false
+        }
+    }
+    
+    pub fn is_free(&self) -> bool {
+        self.ptr.is_none()
+    }
+    
+    pub fn alloc_owned(&mut self, start_page: NonNull<u8>, page_count: u32) {
+        self.ptr = Some(start_page);
+        self.pages = page_count;
+        self.ty = HeapLongTableEntryType::Owned;
+    }
+
+    pub fn deallocate(&mut self) {
+        let Some(ptr) = self.ptr.take() else { return };
+
+        match self.ty {
+            HeapLongTableEntryType::Owned => {
+                for page in 0..self.pages {
+                    unsafe { PageAllocator::current().dealloc_raw((ptr.addr().get() + page as usize * PAGE_SIZE) as u64) }
+                }
+            },
+            HeapLongTableEntryType::Shared(ptr) => {
+                todo!()
+            }
+        }
+
+        self.pages = 0;
+        self.ty = HeapLongTableEntryType::default();
+    }
+
+    pub fn reallocate(&mut self, new_len: usize) -> Option<NonNull<u8>> {
+        match self.ty {
+            HeapLongTableEntryType::Owned => {
+                let num_pages = (new_len + 0xFFF) / PAGE_SIZE;
+                if num_pages == self.pages as usize {
+                    return Some(self.ptr?);
+                }
+
+                let pages = PageAllocator::current().alloc_many(num_pages)?;
+
+                let start_addr = pages[0].virt_addr();
+                for page in pages {
+                    page.leak();
+                }
+
+                if let Some(ptr) = self.ptr {
+                    let out = unsafe { core::slice::from_raw_parts_mut(start_addr as *mut u8, num_pages * PAGE_SIZE) };
+                    let old = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), self.pages as usize * PAGE_SIZE) };
+
+                    out.copy_from_slice(old)
+                }
+
+                Some(NonNull::new(start_addr as *mut u8)?)
+            },
+            HeapLongTableEntryType::Shared(ptr) => {
+                todo!()
+            }
+        }
+    }
 }

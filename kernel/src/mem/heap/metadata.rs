@@ -401,7 +401,7 @@ impl Debug for HeapMetadataEntry {
             HeapMetadataEntryType::General(ref inner) => {
                 write!(f, "{:?}", inner)
             }
-            _ => write!(f, "unimplemented"),
+            _ => write!(f, "unimplemented impl Debug for HeapMetadataEntry"),
         }
     }
 }

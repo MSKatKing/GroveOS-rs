@@ -9,6 +9,7 @@ mod cpu;
 mod mem;
 mod screen;
 
+use alloc::vec;
 use alloc::vec::Vec;
 // use alloc::vec::Vec;
 use crate::cpu::gdt::{install_gdt_defaults, lgdt};
